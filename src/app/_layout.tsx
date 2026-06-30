@@ -1,15 +1,34 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { ThemeWrapper } from '@/components/theme-wrapper';
+import { AuthProvider } from '@/context/auth-context';
+import { ThemePreferenceProvider } from '@/context/theme-preference-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export default function TabLayout() {
+function RootNavigation() {
   const colorScheme = useColorScheme();
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <ThemeWrapper>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(main)" />
+        </Stack>
+      </ThemeProvider>
+    </ThemeWrapper>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <AuthProvider>
+        <RootNavigation />
+      </AuthProvider>
+    </ThemePreferenceProvider>
   );
 }
