@@ -1,21 +1,34 @@
+import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
 import { ThemeWrapper } from '@/components/theme-wrapper';
+import { AppDarkTheme, AppLightTheme } from '@/constants/navigation-theme';
 import { AuthProvider } from '@/context/auth-context';
 import { ThemePreferenceProvider } from '@/context/theme-preference-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSystemColorScheme } from '@/hooks/use-system-color-scheme';
+
+export const unstable_settings = {
+  initialRouteName: 'splash',
+};
 
 function RootNavigation() {
-  const colorScheme = useColorScheme();
+  const appColorScheme = useColorScheme();
+  const systemColorScheme = useSystemColorScheme();
 
   return (
     <ThemeWrapper>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false }}>
+      <ThemeProvider value={appColorScheme === 'dark' ? AppDarkTheme : AppLightTheme}>
+        <StatusBar style={systemColorScheme === 'dark' ? 'light' : 'dark'} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            statusBarStyle: 'auto',
+          }}>
+          <Stack.Screen name="splash" />
           <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
           <Stack.Screen name="(main)" />
         </Stack>
       </ThemeProvider>
