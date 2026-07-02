@@ -1,18 +1,23 @@
 import { useRef, useState } from 'react';
-import { Text, TextInput } from 'react-native';
+import Ionicons from '@react-native-vector-icons/ionicons';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthCard } from '@/components/auth/auth-card';
-import { AuthErrorBanner } from '@/components/auth/auth-error-banner';
-import { AuthFooterLink } from '@/components/auth/auth-footer-link';
-import { AuthHeader } from '@/components/auth/auth-header';
-import { AuthLayout } from '@/components/auth/auth-layout';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
 
 type RegisterScreenProps = {
   onSignUp?: (data: { name: string; email: string; password: string }) => void;
   onSignIn?: () => void;
-  onBack?: () => void;
   loading?: boolean;
   error?: string;
 };
@@ -20,7 +25,6 @@ type RegisterScreenProps = {
 export function RegisterScreen({
   onSignUp,
   onSignIn,
-  onBack,
   loading = false,
   error,
 }: RegisterScreenProps) {
@@ -33,11 +37,10 @@ export function RegisterScreen({
   const confirmPasswordRef = useRef<TextInput>(null);
 
   const passwordsMatch = password === confirmPassword;
-  const passwordLongEnough = password.length >= 8;
   const canSubmit =
     name.trim().length > 0 &&
     email.trim().length > 0 &&
-    passwordLongEnough &&
+    password.length > 0 &&
     confirmPassword.length > 0 &&
     passwordsMatch;
 
@@ -51,97 +54,112 @@ export function RegisterScreen({
   }
 
   return (
-    <AuthLayout onBack={onBack}>
-      <AuthHeader
-        title="Crea tu cuenta"
-        subtitle="Empieza a organizar tu día con tu asistente inteligente"
-      />
+    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1">
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerClassName="flex-grow justify-center px-6 py-8">
+          <View className="mb-4 flex-row justify-end">
+            <ThemeToggle compact />
+          </View>
 
-      <AuthCard>
-        <Input
-          label="Nombre"
-          value={name}
-          onChangeText={setName}
-          placeholder="Tu nombre"
-          autoCapitalize="words"
-          autoComplete="name"
-          textContentType="name"
-          returnKeyType="next"
-          onSubmitEditing={() => emailRef.current?.focus()}
-        />
+          <View className="w-full max-w-md gap-8 self-center">
+            <View className="items-center gap-3">
+              <View className="h-14 w-14 items-center justify-center rounded-2xl bg-muted dark:bg-muted-dark">
+                <Ionicons name="person-add-outline" size={26} color="#7C3AED" />
+              </View>
+              <Text className="text-center text-[28px] font-bold tracking-tight text-foreground dark:text-foreground-dark">
+                Crea tu cuenta
+              </Text>
+            </View>
 
-        <Input
-          ref={emailRef}
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          placeholder="tu@email.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          textContentType="emailAddress"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
+            <View className="gap-4 rounded-2xl border border-border bg-surface p-6 dark:border-border-dark dark:bg-surface-dark">
+              <Input
+                label="Nombre"
+                value={name}
+                onChangeText={setName}
+                placeholder="Tu nombre"
+                autoCapitalize="words"
+                autoComplete="name"
+                textContentType="name"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+              />
 
-        <Input
-          ref={passwordRef}
-          label="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Mínimo 8 caracteres"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="new-password"
-            textContentType="newPassword"
-            returnKeyType="next"
-            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-            error={
-              password.length > 0 && !passwordLongEnough
-                ? 'La contraseña debe tener al menos 8 caracteres'
-                : undefined
-            }
-          />
+              <Input
+                ref={emailRef}
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="tu@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
 
-        <Input
-          ref={confirmPasswordRef}
-          label="Confirmar contraseña"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          placeholder="Repite tu contraseña"
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="new-password"
-          textContentType="newPassword"
-          returnKeyType="done"
-          onSubmitEditing={handleSignUp}
-          error={
-            confirmPassword.length > 0 && !passwordsMatch
-              ? 'Las contraseñas no coinciden'
-              : undefined
-          }
-        />
+              <Input
+                ref={passwordRef}
+                label="Contraseña"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+              />
 
-        {error ? <AuthErrorBanner message={error} /> : null}
+              <Input
+                ref={confirmPasswordRef}
+                label="Confirmar contraseña"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="done"
+                onSubmitEditing={handleSignUp}
+                error={
+                  confirmPassword.length > 0 && !passwordsMatch
+                    ? 'Las contraseñas no coinciden'
+                    : undefined
+                }
+              />
 
-        <Button
-          label="Crear cuenta"
-          onPress={handleSignUp}
-          loading={loading}
-          disabled={!canSubmit}
-        />
+              {error ? (
+                <Text className="text-center text-sm text-danger dark:text-danger-dark">{error}</Text>
+              ) : null}
 
-        <Text className="text-center text-xs leading-5 text-subtle dark:text-subtle-dark">
-          Al registrarte aceptas usar tu cuenta para acceder al asistente personal.
-        </Text>
-      </AuthCard>
+              <Button
+                label="Crear cuenta"
+                onPress={handleSignUp}
+                loading={loading}
+                disabled={!canSubmit}
+              />
+            </View>
 
-      <AuthFooterLink
-        text="¿Ya tienes cuenta?"
-        actionLabel="Inicia sesión"
-        onPress={onSignIn}
-      />
-    </AuthLayout>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onSignIn}
+              className="items-center py-2 active:opacity-70">
+              <Text className="text-center text-sm text-subtle dark:text-subtle-dark">
+                ¿Ya tienes cuenta?{' '}
+                <Text className="font-semibold text-brand dark:text-brand-dark">Inicia sesión</Text>
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

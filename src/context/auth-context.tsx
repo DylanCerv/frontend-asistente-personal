@@ -45,7 +45,10 @@ type AuthContextValue = {
   isBootstrapping: boolean;
   isLoading: boolean;
   signIn: (credentials: SignInCredentials) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signUp: (data: SignUpData) => Promise<void>;
+  updateDisplayName: (name: string) => void;
   signOut: () => void;
 };
 
@@ -67,6 +70,10 @@ function mapApiUser(apiUser: ApiUser): User {
 async function persistAuth(payload: AuthPayload): Promise<User> {
   await setStoredSession(payload.session);
   return mapApiUser(payload.user);
+}
+
+function throwSocialAuthUnavailable(): never {
+  throw new Error('Inicio de sesión social no disponible aún. Usa tu correo.');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -126,6 +133,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      throwSocialAuthUnavailable();
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const signInWithApple = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      throwSocialAuthUnavailable();
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const updateDisplayName = useCallback((name: string) => {
+    setUser((prev) => (prev ? { ...prev, name: name.trim() } : prev));
+  }, []);
+
   const signUp = useCallback(async ({ name, email, password }: SignUpData) => {
     setIsLoading(true);
     try {
@@ -144,10 +173,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBootstrapping,
       isLoading,
       signIn,
+      signInWithGoogle,
+      signInWithApple,
       signUp,
+      updateDisplayName,
       signOut,
     }),
-    [user, isBootstrapping, isLoading, signIn, signUp, signOut],
+    [
+      user,
+      isBootstrapping,
+      isLoading,
+      signIn,
+      signInWithGoogle,
+      signInWithApple,
+      signUp,
+      updateDisplayName,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

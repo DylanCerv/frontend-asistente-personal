@@ -1,14 +1,13 @@
+import Ionicons from '@react-native-vector-icons/ionicons';
 import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 
 import { ThemeToggle } from '@/components/theme-toggle';
 

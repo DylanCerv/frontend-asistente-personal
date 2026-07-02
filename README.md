@@ -1,56 +1,56 @@
-# Welcome to your Expo app 👋
+# Asistente
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> **Habla. Nosotros organizamos.**
 
-## Get started
+Asistente personal con IA para iOS, Android y Web. Habla o escribe; la IA organiza tareas, eventos y recordatorios.
 
-1. Install dependencies
+## Documentación completa
 
-   ```bash
-   npm install
-   ```
+**Lee [DOCUMENTATION.md](./DOCUMENTATION.md)** — guía oficial v1 para el equipo. Incluye:
 
-2. Start the app
+- Arquitectura y estructura de archivos
+- Flujo de pantallas (onboarding → login → app)
+- Captura por voz + Whisper + endpoint IA
+- Agenda con filtros por rango y reportes PDF
+- Accesos rápidos y configuración `.env`
+- Changelog y roadmap
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Inicio rápido
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Variables de entorno
 
-### Other setup steps
+```env
+EXPO_PUBLIC_OPENAI_API_KEY=sk-...
+EXPO_PUBLIC_ASSISTANT_API_URL=https://tu-api.com/assistant/chat
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+### Login mock
 
-## Learn more
+- Email: `e1@gmail.com`
+- Contraseña: `ejem1234`
 
-To learn more about developing your project with Expo, look at the following resources:
+## Stack
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Expo 54 · React Native · expo-router 6
+- NativeWind 4 (Tailwind)
+- TypeScript
+- Whisper (OpenAI) · expo-print · expo-quick-actions
 
-## Join the community
+## Scripts
 
-Join our community of developers creating universal apps.
+| Comando | Descripción |
+|---------|-------------|
+| `npm start` | Inicia Expo |
+| `npm run ios` | iOS |
+| `npm run android` | Android |
+| `npm run web` | Web |
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+Ver [DOCUMENTATION.md](./DOCUMENTATION.md) para detalles completos de la v1.
