@@ -9,7 +9,7 @@ import {
 
 export type ThemeMode = 'light' | 'dark';
 
-/** Controls in-app UI only (NativeWind). System status bar follows device settings. */
+/** Controls in-app theme. Status bar and navigation follow the same preference. */
 type ThemePreferenceContextValue = {
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;

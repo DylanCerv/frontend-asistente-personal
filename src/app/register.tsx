@@ -18,8 +18,8 @@ export default function RegisterRoute() {
       setError(null);
       await signUp(data);
       router.replace('/');
-    } catch {
-      setError('No se pudo crear la cuenta. Intenta de nuevo.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta. Intenta de nuevo.');
     }
   }
 
@@ -27,6 +27,7 @@ export default function RegisterRoute() {
     <RegisterScreen
       onSignUp={handleSignUp}
       onSignIn={() => router.replace('/login')}
+      onBack={() => router.back()}
       loading={isLoading}
       error={error ?? undefined}
     />

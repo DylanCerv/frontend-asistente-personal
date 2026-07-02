@@ -7,7 +7,6 @@ import { AppDarkTheme, AppLightTheme } from '@/constants/navigation-theme';
 import { AuthProvider } from '@/context/auth-context';
 import { ThemePreferenceProvider } from '@/context/theme-preference-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useSystemColorScheme } from '@/hooks/use-system-color-scheme';
 
 export const unstable_settings = {
   initialRouteName: 'splash',
@@ -15,16 +14,18 @@ export const unstable_settings = {
 
 function RootNavigation() {
   const appColorScheme = useColorScheme();
-  const systemColorScheme = useSystemColorScheme();
 
   return (
     <ThemeWrapper>
       <ThemeProvider value={appColorScheme === 'dark' ? AppDarkTheme : AppLightTheme}>
-        <StatusBar style={systemColorScheme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style={appColorScheme === 'dark' ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
             headerShown: false,
-            statusBarStyle: 'auto',
+            statusBarStyle: appColorScheme === 'dark' ? 'light' : 'dark',
+            contentStyle: {
+              backgroundColor: appColorScheme === 'dark' ? '#0B1120' : '#F1F5F9',
+            },
           }}>
           <Stack.Screen name="splash" />
           <Stack.Screen name="login" />

@@ -8,23 +8,43 @@ type ThemeToggleProps = {
 
 export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   const { mode, setMode } = useThemePreference();
+  const isDark = mode === 'dark';
 
   if (compact) {
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Cambiar tema"
-        onPress={() => setMode(mode === 'light' ? 'dark' : 'light')}
-        className="h-11 w-11 items-center justify-center rounded-full bg-surface dark:bg-surface-dark">
-        <Text className="text-xl">{mode === 'light' ? '🌙' : '☀️'}</Text>
+        accessibilityLabel={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        onPress={() => setMode(isDark ? 'light' : 'dark')}
+        className={`h-11 w-11 items-center justify-center rounded-full border ${
+          isDark
+            ? 'border-border-dark bg-surface-dark'
+            : 'border-border bg-white'
+        } active:opacity-70`}>
+        <Text className="text-xl">{isDark ? '☀️' : '🌙'}</Text>
       </Pressable>
     );
   }
 
   return (
-    <View className="flex-row gap-1 rounded-xl bg-surface p-1 dark:bg-surface-dark">
-      <ThemeOption label="Claro" value="light" active={mode === 'light'} onSelect={setMode} />
-      <ThemeOption label="Oscuro" value="dark" active={mode === 'dark'} onSelect={setMode} />
+    <View
+      className={`flex-row gap-1 rounded-2xl border p-1 ${
+        isDark ? 'border-border-dark bg-surface-dark' : 'border-border bg-white'
+      }`}>
+      <ThemeOption
+        label="Claro"
+        value="light"
+        active={mode === 'light'}
+        isDark={isDark}
+        onSelect={setMode}
+      />
+      <ThemeOption
+        label="Oscuro"
+        value="dark"
+        active={mode === 'dark'}
+        isDark={isDark}
+        onSelect={setMode}
+      />
     </View>
   );
 }
@@ -33,20 +53,37 @@ function ThemeOption({
   label,
   value,
   active,
+  isDark,
   onSelect,
 }: {
   label: string;
   value: ThemeMode;
   active: boolean;
+  isDark: boolean;
   onSelect: (mode: ThemeMode) => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       onPress={() => onSelect(value)}
-      className={`flex-1 items-center rounded-lg py-2.5 ${active ? 'bg-canvas dark:bg-canvas-dark' : ''}`}>
+      className={`flex-1 items-center rounded-xl py-2.5 ${
+        active
+          ? isDark
+            ? 'bg-canvas-dark'
+            : 'bg-canvas shadow-sm'
+          : ''
+      }`}>
       <Text
-        className={`text-sm ${active ? 'font-semibold text-foreground dark:text-foreground-dark' : 'font-medium text-subtle dark:text-subtle-dark'}`}>
+        className={`text-sm ${
+          active
+            ? isDark
+              ? 'font-semibold text-foreground-dark'
+              : 'font-semibold text-foreground'
+            : isDark
+              ? 'font-medium text-subtle-dark'
+              : 'font-medium text-subtle'
+        }`}>
         {label}
       </Text>
     </Pressable>

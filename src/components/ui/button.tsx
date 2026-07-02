@@ -8,7 +8,7 @@ type ButtonProps = ComponentProps<typeof Pressable> & {
 };
 
 const variantClasses = {
-  primary: 'bg-brand dark:bg-brand-dark active:opacity-85',
+  primary: 'bg-brand dark:bg-brand-dark active:opacity-85 shadow-sm',
   secondary: 'bg-surface dark:bg-surface-dark active:opacity-85',
   ghost: 'bg-transparent active:opacity-70',
 } as const;
@@ -33,7 +33,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       disabled={isDisabled}
-      className={`min-h-[52px] items-center justify-center rounded-xl px-5 py-3.5 ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
+      className={`min-h-[54px] items-center justify-center rounded-2xl px-5 py-3.5 ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
       {...props}>
       {loading ? (
         <ActivityIndicator color={variant === 'primary' ? '#FFFFFF' : '#2563EB'} />

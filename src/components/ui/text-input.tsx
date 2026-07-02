@@ -20,12 +20,12 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
       <View className="relative">
         <TextInput
           ref={ref}
-          placeholderTextColor="#64748B"
+          placeholderTextColor="#94A3B8"
           secureTextEntry={isPasswordField && !isPasswordVisible}
-          className={`rounded-xl border bg-surface px-4 py-3.5 text-base text-foreground dark:bg-surface-dark dark:text-foreground-dark ${
+          className={`rounded-2xl border bg-canvas px-4 py-3.5 text-base text-foreground dark:bg-canvas-dark dark:text-foreground-dark ${
             isPasswordField ? 'pr-12' : ''
           } ${
-            error ? 'border-danger dark:border-danger-dark' : 'border-border dark:border-border-dark'
+            error ? 'border-danger dark:border-danger-dark' : 'border-border/80 dark:border-border-dark/80'
           } ${className ?? ''}`}
           {...props}
         />

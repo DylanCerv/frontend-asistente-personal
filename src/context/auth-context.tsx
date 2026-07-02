@@ -8,9 +8,26 @@ import {
   type ReactNode,
 } from 'react';
 
+import {
+  clearStoredSession,
+  getStoredSession,
+  setStoredSession,
+} from '@/lib/auth/session-storage';
+import { setUnauthorizedHandler } from '@/services/api/api-error';
+import {
+  getMeRequest,
+  loginRequest,
+  refreshSessionRequest,
+  registerRequest,
+} from '@/services/auth/auth-api';
+import type { ApiUser, AuthPayload } from '@/types/api';
+
 type User = {
+  id: string;
   email: string;
   name: string;
+  roleId: number;
+  roleName: string;
 };
 
 type SignInCredentials = {
@@ -28,27 +45,28 @@ type AuthContextValue = {
   isBootstrapping: boolean;
   isLoading: boolean;
   signIn: (credentials: SignInCredentials) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
   signUp: (data: SignUpData) => Promise<void>;
   signOut: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const MOCK_USER = {
-  email: 'e1@gmail.com',
-  password: 'ejem1234',
-  name: 'E1',
-} as const;
+function mapApiUser(apiUser: ApiUser): User {
+  const emailLocal = apiUser.email.split('@')[0] ?? 'Usuario';
+  const profileName = apiUser.profile?.fullName?.trim();
 
-const BOOTSTRAP_DELAY_MS = 1200;
-
-function mockAuthDelay() {
-  return new Promise<void>((resolve) => setTimeout(resolve, 600));
+  return {
+    id: apiUser.id,
+    email: apiUser.email,
+    name: profileName || emailLocal.charAt(0).toUpperCase() + emailLocal.slice(1),
+    roleId: apiUser.roleId,
+    roleName: apiUser.role.name,
+  };
 }
 
-function bootstrapDelay() {
-  return new Promise<void>((resolve) => setTimeout(resolve, BOOTSTRAP_DELAY_MS));
+async function persistAuth(payload: AuthPayload): Promise<User> {
+  await setStoredSession(payload.session);
+  return mapApiUser(payload.user);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -56,15 +74,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
+  const signOut = useCallback(() => {
+    void clearStoredSession();
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(signOut);
+  }, [signOut]);
+
   useEffect(() => {
     let isMounted = true;
 
     async function validateSession() {
-      await bootstrapDelay();
+      try {
+        const storedSession = await getStoredSession();
+        if (!storedSession) return;
 
-      // Mock: future session restore from secure storage goes here.
-      if (isMounted) {
-        setIsBootstrapping(false);
+        try {
+          const apiUser = await getMeRequest();
+          if (isMounted) setUser(mapApiUser(apiUser));
+          return;
+        } catch {
+          const refreshed = await refreshSessionRequest(storedSession.refreshToken);
+          await setStoredSession(refreshed.session);
+          if (isMounted) setUser(mapApiUser(refreshed.user));
+        }
+      } catch {
+        await clearStoredSession();
+        if (isMounted) setUser(null);
+      } finally {
+        if (isMounted) setIsBootstrapping(false);
       }
     }
 
@@ -76,60 +116,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async ({ email, password }: SignInCredentials) => {
-    const normalizedEmail = email.trim().toLowerCase();
-
     setIsLoading(true);
     try {
-      await mockAuthDelay();
-
-      const isValid =
-        normalizedEmail === MOCK_USER.email && password === MOCK_USER.password;
-
-      if (!isValid) {
-        throw new Error('Credenciales incorrectas');
-      }
-
-      setUser({
-        email: MOCK_USER.email,
-        name: MOCK_USER.name,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const signInWithGoogle = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      await mockAuthDelay();
-      setUser({
-        email: 'usuario@gmail.com',
-        name: 'Usuario Google',
-      });
+      const payload = await loginRequest(email.trim(), password);
+      const nextUser = await persistAuth(payload);
+      setUser(nextUser);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const signUp = useCallback(async ({ name, email, password }: SignUpData) => {
-    if (!name.trim() || !email.trim() || !password) {
-      throw new Error('Completa todos los campos');
-    }
-
     setIsLoading(true);
     try {
-      await mockAuthDelay();
-      setUser({
-        email: email.trim(),
-        name: name.trim(),
-      });
+      const payload = await registerRequest(email.trim(), password, name.trim());
+      const nextUser = await persistAuth(payload);
+      setUser(nextUser);
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
-  const signOut = useCallback(() => {
-    setUser(null);
   }, []);
 
   const value = useMemo(
@@ -139,11 +144,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBootstrapping,
       isLoading,
       signIn,
-      signInWithGoogle,
       signUp,
       signOut,
     }),
-    [user, isBootstrapping, isLoading, signIn, signInWithGoogle, signUp, signOut],
+    [user, isBootstrapping, isLoading, signIn, signUp, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -6,7 +6,7 @@ import { LoginScreen } from '@/screens/auth/LoginScreen';
 
 export default function LoginRoute() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, signIn, signInWithGoogle } = useAuth();
+  const { isAuthenticated, isLoading, signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   if (isAuthenticated) {
@@ -18,25 +18,14 @@ export default function LoginRoute() {
       setError(null);
       await signIn(credentials);
       router.replace('/');
-    } catch {
-      setError('Credenciales incorrectas. Intenta de nuevo.');
-    }
-  }
-
-  async function handleGoogleSignIn() {
-    try {
-      setError(null);
-      await signInWithGoogle();
-      router.replace('/');
-    } catch {
-      setError('No se pudo iniciar sesión con Google.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Credenciales incorrectas. Intenta de nuevo.');
     }
   }
 
   return (
     <LoginScreen
       onSignIn={handleSignIn}
-      onGoogleSignIn={handleGoogleSignIn}
       onRegister={() => router.push('/register')}
       loading={isLoading}
       error={error ?? undefined}
