@@ -1,4 +1,5 @@
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import Ionicons from '@react-native-vector-icons/ionicons';
+import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -12,14 +13,28 @@ export default function AppTabs() {
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
+      <NativeTabs.Trigger name="tasks">
+        <Label>Tareas</Label>
+        <Icon
+          selectedColor={colors.primary}
+          src={<VectorIcon family={Ionicons} name="checkbox-outline" />}
+        />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="index">
         <Label>Inicio</Label>
-        <Icon src={require('@/assets/images/tabIcons/home.png')} />
+        <Icon
+          selectedColor={colors.primary}
+          src={<VectorIcon family={Ionicons} name="sparkles-outline" />}
+        />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">
         <Label>Perfil</Label>
-        <Icon src={require('@/assets/images/tabIcons/explore.png')} />
+        <Icon
+          selectedColor={colors.primary}
+          src={<VectorIcon family={Ionicons} name="person-circle-outline" />}
+        />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

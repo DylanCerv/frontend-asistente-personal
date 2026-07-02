@@ -4,8 +4,10 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~0.2.0-beta.9",
+    "@react-native-vector-icons/ionicons": "^13.1.2",
     "babel-preset-expo": "~54.0.10",
     "expo": "^54.0.0",
+    "expo-audio": "~1.1.1",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
     "expo-font": "~14.0.12",

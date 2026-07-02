@@ -1,3 +1,4 @@
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -33,10 +34,7 @@ export function LoginScreen({
   const [password, setPassword] = useState('');
   const passwordRef = useRef<TextInput>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0;
-
   function handleSignIn() {
-    if (!canSubmit) return;
     onSignIn?.({ email: email.trim(), password });
   }
 
@@ -53,16 +51,21 @@ export function LoginScreen({
           </View>
 
           <View className="w-full max-w-md gap-8 self-center">
-            <View className="items-center gap-3">
-              <View className="h-14 w-14 items-center justify-center rounded-2xl bg-muted dark:bg-muted-dark">
-                <Text className="text-2xl">✦</Text>
+            <View className="items-center gap-4">
+              <View className="h-16 w-16 items-center justify-center rounded-3xl bg-muted dark:bg-muted-dark">
+                <Ionicons name="sparkles-outline" size={30} color="#7C3AED" />
               </View>
-              <Text className="text-center text-[28px] font-bold tracking-tight text-foreground dark:text-foreground-dark">
-                Bienvenido de nuevo
-              </Text>
+              <View className="items-center gap-2">
+                <Text className="text-center text-[30px] font-bold tracking-tight text-foreground dark:text-foreground-dark">
+                  Inicia sesión
+                </Text>
+                <Text className="max-w-xs text-center text-base leading-6 text-subtle dark:text-subtle-dark">
+                  Accede con tus credenciales mock para entrar al asistente.
+                </Text>
+              </View>
             </View>
 
-            <View className="gap-4 rounded-2xl border border-border bg-surface p-6 dark:border-border-dark dark:bg-surface-dark">
+            <View className="gap-4 rounded-[28px] border border-border bg-surface p-6 shadow-sm dark:border-border-dark dark:bg-surface-dark">
               <Input
                 label="Email"
                 value={email}
@@ -95,12 +98,7 @@ export function LoginScreen({
                 <Text className="text-center text-sm text-danger dark:text-danger-dark">{error}</Text>
               ) : null}
 
-              <Button
-                label="Iniciar sesión"
-                onPress={handleSignIn}
-                loading={loading}
-                disabled={!canSubmit}
-              />
+              <Button label="Iniciar sesión" onPress={handleSignIn} loading={loading} />
             </View>
 
             <View className="flex-row items-center gap-3">

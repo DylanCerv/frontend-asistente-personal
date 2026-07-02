@@ -6,7 +6,7 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
-import { SymbolView } from 'expo-symbols';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { Pressable, View, StyleSheet } from 'react-native';
 
 import { ExternalLink } from './external-link';
@@ -22,6 +22,9 @@ export default function AppTabs() {
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
+          <TabTrigger name="tasks" href="/tasks" asChild>
+            <TabButton>Tareas</TabButton>
+          </TabTrigger>
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Inicio</TabButton>
           </TabTrigger>
@@ -64,11 +67,7 @@ export function CustomTabList(props: TabListProps) {
         <ExternalLink href="https://docs.expo.dev" asChild>
           <Pressable style={styles.externalPressable}>
             <ThemedText type="link">Docs</ThemedText>
-            <SymbolView
-              tintColor={colors.text}
-              name={{ ios: 'arrow.up.right.square', web: 'link' }}
-              size={12}
-            />
+            <Ionicons name="open-outline" size={14} color={colors.text} />
           </Pressable>
         </ExternalLink>
       </ThemedView>

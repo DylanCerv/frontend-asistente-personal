@@ -1,3 +1,4 @@
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { Pressable, Text, View } from 'react-native';
 
 import { useThemePreference, type ThemeMode } from '@/context/theme-preference-context';
@@ -16,7 +17,11 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
         accessibilityLabel="Cambiar tema"
         onPress={() => setMode(mode === 'light' ? 'dark' : 'light')}
         className="h-11 w-11 items-center justify-center rounded-full bg-surface dark:bg-surface-dark">
-        <Text className="text-xl">{mode === 'light' ? '🌙' : '☀️'}</Text>
+        <Ionicons
+          name={mode === 'light' ? 'moon-outline' : 'sunny-outline'}
+          size={20}
+          color={mode === 'light' ? '#7C3AED' : '#A78BFA'}
+        />
       </Pressable>
     );
   }

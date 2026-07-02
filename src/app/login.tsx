@@ -18,8 +18,8 @@ export default function LoginRoute() {
       setError(null);
       await signIn(credentials);
       router.replace('/');
-    } catch {
-      setError('Credenciales incorrectas. Intenta de nuevo.');
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Credenciales incorrectas');
     }
   }
 

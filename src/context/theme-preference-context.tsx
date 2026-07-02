@@ -2,10 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { colorScheme as nativeWindColorScheme } from 'nativewind';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -20,6 +22,10 @@ const ThemePreferenceContext = createContext<ThemePreferenceContextValue | null>
 
 export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>('light');
+
+  useEffect(() => {
+    nativeWindColorScheme.set(mode);
+  }, [mode]);
 
   const toggleMode = useCallback(() => {
     setMode((current) => (current === 'light' ? 'dark' : 'light'));

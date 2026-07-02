@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -67,7 +68,7 @@ export function RegisterScreen({
           <View className="w-full max-w-md gap-8 self-center">
             <View className="items-center gap-3">
               <View className="h-14 w-14 items-center justify-center rounded-2xl bg-muted dark:bg-muted-dark">
-                <Text className="text-2xl">✦</Text>
+                <Ionicons name="person-add-outline" size={26} color="#7C3AED" />
               </View>
               <Text className="text-center text-[28px] font-bold tracking-tight text-foreground dark:text-foreground-dark">
                 Crea tu cuenta

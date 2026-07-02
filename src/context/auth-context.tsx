@@ -82,6 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await mockAuthDelay();
 
+      if (!normalizedEmail || !password) {
+        throw new Error('Ingresa tus credenciales');
+      }
+
       const isValid =
         normalizedEmail === MOCK_USER.email && password === MOCK_USER.password;
 
