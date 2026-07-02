@@ -55,6 +55,7 @@ export default function LoginRoute() {
       onGoogleSignIn={handleGoogleSignIn}
       onAppleSignIn={handleAppleSignIn}
       onRegister={() => router.push('/register')}
+      onBackFromEmailForm={() => setError(null)}
       loading={isLoading}
       error={error ?? undefined}
     />

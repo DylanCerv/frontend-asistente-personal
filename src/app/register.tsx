@@ -29,6 +29,7 @@ export default function RegisterRoute() {
     <RegisterScreen
       onSignUp={handleSignUp}
       onSignIn={() => router.replace('/login')}
+      onBackFromEmailForm={() => setError(null)}
       loading={isLoading}
       error={error ?? undefined}
     />

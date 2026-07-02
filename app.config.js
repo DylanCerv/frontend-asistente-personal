@@ -8,6 +8,7 @@ module.exports = () => ({
     },
     plugins: [
       ...(appJson.expo.plugins ?? []),
+      'expo-asset',
       [
         'expo-av',
         {
