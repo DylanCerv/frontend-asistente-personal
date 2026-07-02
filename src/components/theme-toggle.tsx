@@ -5,9 +5,10 @@ import { useThemePreference, type ThemeMode } from '@/context/theme-preference-c
 
 type ThemeToggleProps = {
   compact?: boolean;
+  variant?: 'segmented' | 'cards';
 };
 
-export function ThemeToggle({ compact = false }: ThemeToggleProps) {
+export function ThemeToggle({ compact = false, variant = 'segmented' }: ThemeToggleProps) {
   const { mode, setMode } = useThemePreference();
 
   if (compact) {
@@ -26,11 +27,77 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
     );
   }
 
+  if (variant === 'cards') {
+    return (
+      <View className="flex-row gap-3">
+        <ThemeCard
+          label="Claro"
+          description="Fondo suave y limpio"
+          icon="sunny-outline"
+          value="light"
+          active={mode === 'light'}
+          onSelect={setMode}
+        />
+        <ThemeCard
+          label="Oscuro"
+          description="Menos brillo, más descanso"
+          icon="moon-outline"
+          value="dark"
+          active={mode === 'dark'}
+          onSelect={setMode}
+        />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-row gap-1 rounded-xl bg-surface p-1 dark:bg-surface-dark">
       <ThemeOption label="Claro" value="light" active={mode === 'light'} onSelect={setMode} />
       <ThemeOption label="Oscuro" value="dark" active={mode === 'dark'} onSelect={setMode} />
     </View>
+  );
+}
+
+function ThemeCard({
+  label,
+  description,
+  icon,
+  value,
+  active,
+  onSelect,
+}: {
+  label: string;
+  description: string;
+  icon: 'sunny-outline' | 'moon-outline';
+  value: ThemeMode;
+  active: boolean;
+  onSelect: (mode: ThemeMode) => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => onSelect(value)}
+      className={`flex-1 gap-3 rounded-[24px] border p-4 active:opacity-90 ${
+        active
+          ? 'border-brand bg-muted dark:border-brand-dark dark:bg-muted-dark'
+          : 'border-border bg-canvas dark:border-border-dark dark:bg-canvas-dark'
+      }`}>
+      <View
+        className={`h-11 w-11 items-center justify-center rounded-2xl ${
+          active ? 'bg-brand dark:bg-brand-dark' : 'bg-surface-soft dark:bg-surface-soft-dark'
+        }`}>
+        <Ionicons name={icon} size={22} color={active ? '#FFFFFF' : '#7C3AED'} />
+      </View>
+      <View className="gap-1">
+        <Text
+          className={`text-base font-semibold ${
+            active ? 'text-foreground dark:text-foreground-dark' : 'text-subtle dark:text-subtle-dark'
+          }`}>
+          {label}
+        </Text>
+        <Text className="text-xs leading-4 text-subtle dark:text-subtle-dark">{description}</Text>
+      </View>
+    </Pressable>
   );
 }
 
