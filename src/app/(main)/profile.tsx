@@ -1,14 +1,69 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  ProfileSettingsSheet,
+  type ProfileSheetType,
+} from '@/components/profile-settings-sheet';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/context/auth-context';
+import { useSubscription } from '@/context/subscription-context';
+import { useUserPreferences } from '@/context/user-preferences-context';
+
+const QUICK_ACCESS_OPTIONS = [
+  {
+    id: 'app-shortcut',
+    icon: 'phone-portrait-outline' as const,
+    label: 'Mantén presionado el ícono de la app',
+    description: 'Aparece "Hablar" para grabar sin entrar a la app.',
+    status: 'available' as const,
+  },
+  {
+    id: 'deep-link',
+    icon: 'link-outline' as const,
+    label: 'Enlace directo asistente://capture',
+    description: 'Abre captura de voz desde atajos del sistema o Siri.',
+    status: 'available' as const,
+  },
+  {
+    id: 'widget',
+    icon: 'grid-outline' as const,
+    label: 'Widget en pantalla de inicio',
+    description: 'Botón gigante de micrófono en la pantalla principal.',
+    status: 'coming' as const,
+  },
+  {
+    id: 'lock-screen',
+    icon: 'lock-closed-outline' as const,
+    label: 'Pantalla bloqueada',
+    description: 'Botón "Nuevo recordatorio" sin desbloquear.',
+    status: 'coming' as const,
+  },
+] as const;
+
+const INTEGRATIONS = [
+  { id: 'calendar', icon: 'calendar-outline' as const, label: 'Calendario', status: 'Próximamente' },
+  { id: 'gmail', icon: 'mail-outline' as const, label: 'Correo', status: 'Próximamente' },
+  { id: 'whatsapp', icon: 'logo-whatsapp' as const, label: 'WhatsApp', status: 'Próximamente' },
+] as const;
+
+const SETTINGS_MENU = [
+  { id: 'personal' as const, icon: 'person-outline' as const, label: 'Datos personales' },
+  { id: 'security' as const, icon: 'shield-checkmark-outline' as const, label: 'Seguridad' },
+  { id: 'notifications' as const, icon: 'notifications-outline' as const, label: 'Notificaciones' },
+  { id: 'language' as const, icon: 'language-outline' as const, label: 'Idioma' },
+  { id: 'subscription' as const, icon: 'diamond-outline' as const, label: 'Suscripción' },
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { autoSendVoice, setAutoSendVoice, language } = useUserPreferences();
+  const { plan } = useSubscription();
+  const [activeSheet, setActiveSheet] = useState<ProfileSheetType>(null);
 
   function handleSignOut() {
     signOut();
@@ -17,15 +72,21 @@ export default function ProfileScreen() {
 
   const initial = user?.name?.charAt(0)?.toUpperCase() ?? 'A';
 
+  function getMenuValue(id: ProfileSheetType): string | undefined {
+    if (id === 'language') return language === 'es' ? 'Español' : 'English';
+    if (id === 'subscription') return plan.name;
+    return undefined;
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
-      <ScrollView contentContainerClassName="w-full max-w-3xl gap-6 self-center px-6 pb-28 pt-3">
+      <ScrollView contentContainerClassName="w-full max-w-3xl gap-6 self-center px-6 pb-36 pt-3">
         <View className="gap-1">
           <Text className="text-[30px] font-bold text-foreground dark:text-foreground-dark">
             Perfil
           </Text>
           <Text className="text-[15px] text-subtle dark:text-subtle-dark">
-            Tu cuenta y preferencias
+            Cuenta, integraciones y preferencias
           </Text>
         </View>
 
@@ -45,24 +106,111 @@ export default function ProfileScreen() {
           <View className="flex-row border-t border-border bg-surface dark:border-border-dark dark:bg-surface-dark">
             <View className="flex-1 items-center gap-1 border-r border-border py-4 dark:border-border-dark">
               <Ionicons name="sparkles-outline" size={20} color="#7C3AED" />
-              <Text className="text-xs font-medium text-subtle dark:text-subtle-dark">Asistente</Text>
+              <Text className="text-xs font-medium text-subtle dark:text-subtle-dark">
+                {plan.name}
+              </Text>
             </View>
             <View className="flex-1 items-center gap-1 py-4">
-              <Ionicons name="shield-checkmark-outline" size={20} color="#7C3AED" />
-              <Text className="text-xs font-medium text-subtle dark:text-subtle-dark">Cuenta activa</Text>
+              <Ionicons name="mic-outline" size={20} color="#7C3AED" />
+              <Text className="text-xs font-medium text-subtle dark:text-subtle-dark">
+                Voz activa
+              </Text>
             </View>
           </View>
+        </View>
+
+        <View className="gap-3 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
+          <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
+            Cuenta y preferencias
+          </Text>
+          {SETTINGS_MENU.map((item) => (
+            <Pressable
+              key={item.id}
+              accessibilityRole="button"
+              onPress={() => setActiveSheet(item.id)}
+              className="flex-row items-center gap-3 rounded-2xl bg-canvas p-3 active:opacity-80 dark:bg-canvas-dark">
+              <Ionicons name={item.icon} size={20} color="#7C3AED" />
+              <Text className="flex-1 text-[15px] font-medium text-foreground dark:text-foreground-dark">
+                {item.label}
+              </Text>
+              <Text className="text-sm text-subtle dark:text-subtle-dark">
+                {getMenuValue(item.id) ?? ''}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color="#6B6475" />
+            </Pressable>
+          ))}
         </View>
 
         <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
           <View className="gap-1">
             <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
-              Apariencia
-            </Text>
-            <Text className="text-sm text-subtle dark:text-subtle-dark">
-              Elige cómo quieres ver la app
+              Voz
             </Text>
           </View>
+          <View className="flex-row items-center justify-between gap-4 rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
+            <View className="flex-1 gap-1">
+              <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
+                Enviar audio automáticamente
+              </Text>
+              <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+                {autoSendVoice
+                  ? 'Se envía al detener la grabación.'
+                  : 'Escucha antes de enviar.'}
+              </Text>
+            </View>
+            <Switch
+              value={autoSendVoice}
+              onValueChange={setAutoSendVoice}
+              trackColor={{ false: '#E7DFF5', true: '#A78BFA' }}
+              thumbColor={autoSendVoice ? '#7C3AED' : '#FFFFFF'}
+            />
+          </View>
+        </View>
+
+        <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
+          <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
+            Accesos rápidos
+          </Text>
+          {QUICK_ACCESS_OPTIONS.map((item) => (
+            <View
+              key={item.id}
+              className="flex-row items-start gap-3 rounded-2xl bg-canvas p-3 dark:bg-canvas-dark">
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                <Ionicons name={item.icon} size={20} color="#7C3AED" />
+              </View>
+              <View className="flex-1 gap-1">
+                <Text className="text-[15px] font-medium text-foreground dark:text-foreground-dark">
+                  {item.label}
+                </Text>
+                <Text className="text-xs text-subtle dark:text-subtle-dark">{item.description}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
+          <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
+            Integraciones
+          </Text>
+          {INTEGRATIONS.map((item) => (
+            <View
+              key={item.id}
+              className="flex-row items-center gap-3 rounded-2xl bg-canvas p-3 dark:bg-canvas-dark">
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                <Ionicons name={item.icon} size={20} color="#7C3AED" />
+              </View>
+              <Text className="flex-1 text-[15px] font-medium text-foreground dark:text-foreground-dark">
+                {item.label}
+              </Text>
+              <Text className="text-xs text-subtle dark:text-subtle-dark">{item.status}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
+          <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
+            Apariencia
+          </Text>
           <ThemeToggle variant="cards" />
         </View>
 
@@ -76,6 +224,8 @@ export default function ProfileScreen() {
           </Text>
         </Pressable>
       </ScrollView>
+
+      <ProfileSettingsSheet type={activeSheet} onClose={() => setActiveSheet(null)} />
     </SafeAreaView>
   );
 }

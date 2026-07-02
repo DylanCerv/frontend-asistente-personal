@@ -43,7 +43,8 @@
           "enableBackgroundRecording": false
         }
       ],
-      "@react-native-vector-icons/ionicons"
+      "@react-native-vector-icons/ionicons",
+      "expo-quick-actions"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/text-input';
 type LoginScreenProps = {
   onSignIn?: (credentials: { email: string; password: string }) => void;
   onGoogleSignIn?: () => void;
+  onAppleSignIn?: () => void;
   onRegister?: () => void;
   loading?: boolean;
   error?: string;
@@ -26,12 +27,14 @@ type LoginScreenProps = {
 export function LoginScreen({
   onSignIn,
   onGoogleSignIn,
+  onAppleSignIn,
   onRegister,
   loading = false,
   error,
 }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
   function handleSignIn() {
@@ -52,67 +55,83 @@ export function LoginScreen({
 
           <View className="w-full max-w-md gap-8 self-center">
             <View className="items-center gap-4">
-              <View className="h-16 w-16 items-center justify-center rounded-3xl bg-muted dark:bg-muted-dark">
-                <Ionicons name="sparkles-outline" size={30} color="#7C3AED" />
+              <View className="h-20 w-20 items-center justify-center rounded-[28px] bg-brand dark:bg-brand-dark">
+                <Ionicons name="sparkles" size={40} color="#FFFFFF" />
               </View>
               <View className="items-center gap-2">
                 <Text className="text-center text-[30px] font-bold tracking-tight text-foreground dark:text-foreground-dark">
-                  Inicia sesión
+                  Asistente
                 </Text>
-                <Text className="max-w-xs text-center text-base leading-6 text-subtle dark:text-subtle-dark">
-                  Accede con tus credenciales mock para entrar al asistente.
+                <Text className="text-center text-base font-medium text-brand dark:text-brand-dark">
+                  Habla. Nosotros organizamos.
+                </Text>
+                <Text className="max-w-xs text-center text-sm leading-6 text-subtle dark:text-subtle-dark">
+                  Tu asistente personal con IA. No organizas tu vida, solo hablas.
                 </Text>
               </View>
             </View>
 
-            <View className="gap-4 rounded-[28px] border border-border bg-surface p-6 shadow-sm dark:border-border-dark dark:bg-surface-dark">
-              <Input
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="tu@email.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
+            <View className="gap-3">
+              <Button
+                label="Continuar con Google"
+                variant="secondary"
+                onPress={onGoogleSignIn}
+                className="border border-border dark:border-border-dark"
               />
 
-              <Input
-                ref={passwordRef}
-                label="Contraseña"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                secureTextEntry
-                autoCapitalize="none"
-                autoComplete="password"
-                textContentType="password"
-                returnKeyType="done"
-                onSubmitEditing={handleSignIn}
+              <Button
+                label="Continuar con Apple"
+                variant="secondary"
+                onPress={onAppleSignIn}
+                className="border border-border dark:border-border-dark"
               />
 
-              {error ? (
-                <Text className="text-center text-sm text-danger dark:text-danger-dark">{error}</Text>
-              ) : null}
+              {!showEmailForm ? (
+                <Button
+                  label="Continuar con correo"
+                  variant="ghost"
+                  onPress={() => setShowEmailForm(true)}
+                />
+              ) : (
+                <View className="gap-4 rounded-[28px] border border-border bg-surface p-6 dark:border-border-dark dark:bg-surface-dark">
+                  <Input
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="tu@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                  />
 
-              <Button label="Iniciar sesión" onPress={handleSignIn} loading={loading} />
+                  <Input
+                    ref={passwordRef}
+                    label="Contraseña"
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="••••••••"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="password"
+                    textContentType="password"
+                    returnKeyType="done"
+                    onSubmitEditing={handleSignIn}
+                  />
+
+                  {error ? (
+                    <Text className="text-center text-sm text-danger dark:text-danger-dark">
+                      {error}
+                    </Text>
+                  ) : null}
+
+                  <Button label="Iniciar sesión" onPress={handleSignIn} loading={loading} />
+                </View>
+              )}
             </View>
-
-            <View className="flex-row items-center gap-3">
-              <View className="h-px flex-1 bg-border dark:bg-border-dark" />
-              <Text className="text-sm text-subtle dark:text-subtle-dark">o</Text>
-              <View className="h-px flex-1 bg-border dark:bg-border-dark" />
-            </View>
-
-            <Button
-              label="Continuar con Google"
-              variant="secondary"
-              onPress={onGoogleSignIn}
-              className="border border-border dark:border-border-dark"
-            />
 
             <Pressable
               accessibilityRole="button"

@@ -10,14 +10,14 @@ export default function RegisterRoute() {
   const [error, setError] = useState<string | null>(null);
 
   if (isAuthenticated) {
-    return <Redirect href="/" />;
+    return <Redirect href="/setup" />;
   }
 
   async function handleSignUp(data: { name: string; email: string; password: string }) {
     try {
       setError(null);
       await signUp(data);
-      router.replace('/');
+      router.replace('/setup');
     } catch {
       setError('No se pudo crear la cuenta. Intenta de nuevo.');
     }

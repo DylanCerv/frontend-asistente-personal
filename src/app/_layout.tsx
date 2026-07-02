@@ -4,8 +4,11 @@ import { StatusBar } from 'expo-status-bar';
 
 import { ThemeWrapper } from '@/components/theme-wrapper';
 import { AppDarkTheme, AppLightTheme } from '@/constants/navigation-theme';
+import { AppFlowProvider } from '@/context/app-flow-context';
 import { AuthProvider } from '@/context/auth-context';
 import { ThemePreferenceProvider } from '@/context/theme-preference-context';
+import { UserPreferencesProvider } from '@/context/user-preferences-context';
+import { SubscriptionProvider } from '@/context/subscription-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -25,8 +28,10 @@ function RootNavigation() {
             statusBarStyle: 'auto',
           }}>
           <Stack.Screen name="splash" />
+          <Stack.Screen name="onboarding" />
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
+          <Stack.Screen name="setup" />
           <Stack.Screen name="(main)" />
         </Stack>
       </ThemeProvider>
@@ -37,9 +42,15 @@ function RootNavigation() {
 export default function RootLayout() {
   return (
     <ThemePreferenceProvider>
-      <AuthProvider>
-        <RootNavigation />
-      </AuthProvider>
+      <UserPreferencesProvider>
+        <SubscriptionProvider>
+          <AppFlowProvider>
+            <AuthProvider>
+              <RootNavigation />
+            </AuthProvider>
+          </AppFlowProvider>
+        </SubscriptionProvider>
+      </UserPreferencesProvider>
     </ThemePreferenceProvider>
   );
 }

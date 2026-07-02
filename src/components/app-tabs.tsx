@@ -13,19 +13,35 @@ export default function AppTabs() {
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
+      <NativeTabs.Trigger name="index">
+        <Label>Inicio</Label>
+        <Icon
+          selectedColor={colors.primary}
+          src={<VectorIcon family={Ionicons} name="home-outline" />}
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="chat">
+        <Label>Conversar</Label>
+        <Icon
+          selectedColor={colors.primary}
+          src={<VectorIcon family={Ionicons} name="chatbubbles-outline" />}
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="agenda">
+        <Label>Agenda</Label>
+        <Icon
+          selectedColor={colors.primary}
+          src={<VectorIcon family={Ionicons} name="calendar-outline" />}
+        />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="tasks">
         <Label>Tareas</Label>
         <Icon
           selectedColor={colors.primary}
           src={<VectorIcon family={Ionicons} name="checkbox-outline" />}
-        />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="index">
-        <Label>Inicio</Label>
-        <Icon
-          selectedColor={colors.primary}
-          src={<VectorIcon family={Ionicons} name="sparkles-outline" />}
         />
       </NativeTabs.Trigger>
 

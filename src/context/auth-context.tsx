@@ -29,7 +29,9 @@ type AuthContextValue = {
   isLoading: boolean;
   signIn: (credentials: SignInCredentials) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signUp: (data: SignUpData) => Promise<void>;
+  updateDisplayName: (name: string) => void;
   signOut: () => void;
 };
 
@@ -108,11 +110,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await mockAuthDelay();
       setUser({
         email: 'usuario@gmail.com',
-        name: 'Usuario Google',
+        name: 'Usuario',
       });
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const signInWithApple = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await mockAuthDelay();
+      setUser({
+        email: 'usuario@icloud.com',
+        name: 'Usuario',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const updateDisplayName = useCallback((name: string) => {
+    setUser((prev) => (prev ? { ...prev, name: name.trim() } : prev));
   }, []);
 
   const signUp = useCallback(async ({ name, email, password }: SignUpData) => {
@@ -144,10 +163,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       signIn,
       signInWithGoogle,
+      signInWithApple,
       signUp,
+      updateDisplayName,
       signOut,
     }),
-    [user, isBootstrapping, isLoading, signIn, signInWithGoogle, signUp, signOut],
+    [
+      user,
+      isBootstrapping,
+      isLoading,
+      signIn,
+      signInWithGoogle,
+      signInWithApple,
+      signUp,
+      updateDisplayName,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
