@@ -1,17 +1,28 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
+import { useSegments } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomInset } from '@/components/screen-safe-area';
 
 import { useVoiceCapture } from '@/context/voice-capture-context';
 
+function isHomeScreen(segments: string[]): boolean {
+  const last = segments[segments.length - 1];
+  return last === 'index' || (segments.length === 1 && segments[0] === '(main)');
+}
+
 export function FloatingMicButton() {
-  const insets = useSafeAreaInsets();
+  const bottomOffset = useBottomInset(24);
+  const segments = useSegments();
   const { openCapture } = useVoiceCapture();
+
+  if (isHomeScreen(segments as string[])) {
+    return null;
+  }
 
   return (
     <View
       className="absolute right-5 z-50"
-      style={{ bottom: insets.bottom + 72 }}
+      style={{ bottom: bottomOffset }}
       pointerEvents="box-none">
       <Pressable
         accessibilityRole="button"

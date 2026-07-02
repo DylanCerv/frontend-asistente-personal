@@ -1,28 +1,28 @@
-# Asistente — Documentación v1.0.0
+# Asistente — Documentación v2.0.0
 
 > **Habla. Nosotros organizamos.**
 
-Asistente es una aplicación móvil (Expo / React Native) que funciona como **asistente personal con IA**, no como un gestor de tareas tradicional. El usuario habla o escribe; la IA organiza tareas, eventos y recordatorios.
+Asistente es una aplicación móvil (Expo / React Native) que funciona como **asistente personal con IA**, no como un gestor de tareas tradicional. El usuario habla o escribe; la IA organiza tareas, eventos, recordatorios y finanzas.
 
-Este documento es la guía oficial para que cualquier miembro del equipo entienda el proyecto desde cero.
+Este documento refleja el estado actual del proyecto tras las fases de refactor (julio 2026).
 
 ---
 
 ## Tabla de contenidos
 
 1. [Inicio rápido](#inicio-rápido)
-2. [Arquitectura del proyecto](#arquitectura-del-proyecto)
-3. [Flujo de la aplicación](#flujo-de-la-aplicación)
-4. [Pantallas y navegación](#pantallas-y-navegación)
-5. [Funcionalidades v1](#funcionalidades-v1)
-6. [Captura por voz e IA](#captura-por-voz-e-ia)
-7. [Agenda y reportes](#agenda-y-reportes)
-8. [Accesos rápidos](#accesos-rápidos)
-9. [Configuración (.env)](#configuración-env)
-10. [Estructura de archivos](#estructura-de-archivos)
-11. [API del backend (pendiente)](#api-del-backend-pendiente)
-12. [Changelog v1](#changelog-v1)
-13. [Roadmap (no incluido en v1)](#roadmap-no-incluido-en-v1)
+2. [Filosofía del producto](#filosofía-del-producto)
+3. [Arquitectura](#arquitectura)
+4. [Flujo de la aplicación](#flujo-de-la-aplicación)
+5. [Pantallas y navegación](#pantallas-y-navegación)
+6. [Modo demo (mock)](#modo-demo-mock)
+7. [Captura por voz e IA](#captura-por-voz-e-ia)
+8. [Recordatorios inteligentes](#recordatorios-inteligentes)
+9. [Agenda, Memoria y Finanzas](#agenda-memoria-y-finanzas)
+10. [Configuración (.env)](#configuración-env)
+11. [Estructura de archivos](#estructura-de-archivos)
+12. [Fases completadas](#fases-completadas)
+13. [Roadmap](#roadmap)
 
 ---
 
@@ -33,14 +33,13 @@ Este documento es la guía oficial para que cualquier miembro del equipo entiend
 - Node.js 18+
 - npm
 - Expo CLI (`npx expo`)
-- Para accesos rápidos nativos: build de desarrollo (`npx expo run:ios` / `run:android`)
+- Para notificaciones locales y quick actions: build de desarrollo (`npx expo run:android` / `run:ios`)
 
 ### Instalación
 
 ```bash
 npm install
 cp .env.example .env
-# Edita .env con tus API keys
 npx expo start
 ```
 
@@ -51,18 +50,32 @@ npx expo start
 | Email | `e1@gmail.com` |
 | Contraseña | `ejem1234` |
 
-También puedes usar **Google**, **Apple** o **registro por correo** (mock, sin backend real).
+También puedes usar **Google**, **Apple** o **registro por correo** (mock, sin Supabase).
 
 ### Reiniciar onboarding
 
-El onboarding y el setup se guardan en AsyncStorage. Para verlos de nuevo: desinstala la app o borra datos de la app.
+El onboarding se guarda en AsyncStorage (`@asistente/onboarding_complete`). Para verlo de nuevo: desinstala la app o borra datos de la app.
 
 ---
 
-## Arquitectura del proyecto
+## Filosofía del producto
+
+| Principio | Descripción |
+|-----------|-------------|
+| **Voz primero** | Registrar con mínima fricción |
+| **IA organiza** | Tipo, fecha, prioridad, cliente, proyecto |
+| **Home como centro** | Insights proactivos + chat fusionado |
+| **Pantallas complementarias** | Memoria, Agenda, Finanzas |
+| **Perfil secundario** | Configuración, no navegación principal |
+
+No es una app de listas ni un dashboard de análisis. Los insights en Home son contextuales y accionables.
+
+---
+
+## Arquitectura
 
 ```
-Expo 54 + React Native 0.81 + expo-router 6
+Expo 54 + React Native + expo-router 6
 NativeWind 4 (Tailwind CSS)
 TypeScript
 ```
@@ -72,21 +85,22 @@ TypeScript
 | Capa | Ubicación | Responsabilidad |
 |------|-----------|-----------------|
 | Rutas | `src/app/` | Navegación file-based (expo-router) |
-| Pantallas UI | `src/screens/` | Componentes de pantalla reutilizables |
-| Componentes | `src/components/` | UI compartida (voz, calendario, reportes) |
-| Contextos | `src/context/` | Estado global (auth, asistente, preferencias) |
-| Servicios | `src/services/` | Whisper, API IA, reportes PDF |
+| Pantallas UI | `src/screens/` | Splash, Onboarding, Auth |
+| Componentes | `src/components/` | UI compartida (voz, insights, auth) |
+| Contextos | `src/context/` | Estado global |
+| Servicios | `src/services/` | Records, IA, voz, recordatorios, finanzas |
 | Tipos | `src/types/` | TypeScript types |
-| Utilidades | `src/utils/` | Fechas, helpers |
+| Hooks | `src/hooks/` | Sincronización, quick actions |
 
 ### Providers (orden en `src/app/_layout.tsx`)
 
 ```
 ThemePreferenceProvider
   └── UserPreferencesProvider
-        └── AppFlowProvider (onboarding + setup)
-              └── AuthProvider
-                    └── Stack Navigator
+        └── SubscriptionProvider
+              └── AppFlowProvider
+                    └── AuthProvider
+                          └── Stack Navigator
 ```
 
 Dentro de `(main)`:
@@ -94,8 +108,12 @@ Dentro de `(main)`:
 ```
 AssistantProvider
   └── VoiceCaptureProvider
-        └── Tabs + FAB micrófono + VoiceCaptureSheet
+        └── Stack + ReminderSync + FAB micrófono + VoiceCaptureSheet
 ```
+
+### Fuente de verdad de datos
+
+`records` (tipo `MemoryRecord`) es la fuente única. Tareas, eventos y recordatorios se derivan en `assistant-context` vía `record-mappers.ts`.
 
 ---
 
@@ -104,17 +122,28 @@ AssistantProvider
 ```
 Splash ("Habla. Nosotros organizamos.")
     ↓
-Onboarding (3 pantallas) — solo primera vez
-    ↓
 Login / Registro (Google · Apple · Correo)
     ↓
-Setup inicial — solo primera vez
-    ├── ¿Cómo quieres que te llame?
-    ├── ¿Importar calendario?
-    └── Permisos (micrófono, notificaciones, etc.)
+Onboarding (solo registro nuevo)
+    ├── 3 slides de bienvenida
+    └── Permisos: micrófono + notificaciones
     ↓
-App principal (5 tabs)
+Home (centro de la app)
+    ├── Insights proactivos
+    ├── Chat con historial
+    └── Input voz / texto
+    ↓
+Memoria | Agenda | Finanzas  (navegación secundaria)
+Perfil (acceso desde ⚙️ en Home)
 ```
+
+**Notas de flujo:**
+
+- **Login** → Home directo (onboarding ya completado en sesiones anteriores).
+- **Registro** → Onboarding → Home.
+- `/setup` redirige a `/` o `/onboarding` (setup fusionado en onboarding).
+- `/chat` redirige a `/` (chat fusionado en Home).
+- `/tasks` redirige a `/memory`.
 
 ---
 
@@ -125,171 +154,157 @@ App principal (5 tabs)
 | Ruta | Archivo | Descripción |
 |------|---------|-------------|
 | `/splash` | `splash.tsx` | Bootstrap y redirección |
-| `/onboarding` | `onboarding.tsx` | 3 slides de bienvenida |
+| `/onboarding` | `onboarding.tsx` | Slides + permisos |
 | `/login` | `login.tsx` | Inicio de sesión |
 | `/register` | `register.tsx` | Registro |
-| `/setup` | `setup.tsx` | Primer uso post-login |
+| `/setup` | `setup.tsx` | Redirect legacy → `/` o `/onboarding` |
 | `/(main)/*` | `(main)/` | App autenticada |
 
-### Tabs principales (`src/app/(main)/`)
+### Stack principal (`src/app/(main)/`)
 
-| Tab | Ruta | Archivo | Propósito |
-|-----|------|---------|-----------|
-| **Inicio** | `/` | `index.tsx` | Resumen del día, voz, reporte rápido |
-| **Conversar** | `/chat` | `chat.tsx` | Chat con IA (corazón del producto) |
-| **Agenda** | `/agenda` | `agenda.tsx` | Calendario, filtros, reportes PDF |
-| **Tareas** | `/tasks` | `tasks.tsx` | Lista con filtros y categorías |
-| **Perfil** | `/profile` | `profile.tsx` | Cuenta, voz, accesos rápidos, integraciones |
+| Pantalla | Ruta | Archivo | Propósito |
+|----------|------|---------|-----------|
+| **Home** | `/` | `index.tsx` | Insights + chat + voz/texto |
+| **Memoria** | `/memory` | `memory.tsx` | Historial de registros |
+| **Agenda** | `/agenda` | `agenda.tsx` | Día / Semana / Mes |
+| **Finanzas** | `/finances` | `finances.tsx` | Resumen mensual + movimientos |
+| **Perfil** | `/profile` | `profile.tsx` | Cuenta y preferencias |
 
-### Rutas ocultas (sin tab)
+### Redirects (compatibilidad)
+
+| Ruta | Destino |
+|------|---------|
+| `/chat` | `/` |
+| `/tasks` | `/memory` |
+| `/setup` | `/` o `/onboarding` |
+
+### Rutas ocultas
 
 | Ruta | Archivo | Propósito |
 |------|---------|-----------|
-| `/capture` | `capture.tsx` | Deep link / quick action → abre micrófono |
+| `/capture` | `capture.tsx` | Deep link / quick action → micrófono |
 
 ### FAB global
 
-Botón flotante 🎤 visible en todas las tabs → abre `VoiceCaptureSheet`.
+Botón flotante 🎤 visible fuera de Home → abre `VoiceCaptureSheet`. En Home el micrófono está en la barra inferior.
 
 ---
 
-## Funcionalidades v1
+## Modo demo (mock)
 
-### Identidad
+Activo con `EXPO_PUBLIC_USE_MOCK_DATA=true` (default en `.env.example`).
 
-- Nombre interno: **asistente** (`package.json`, `app.json`)
-- Marca visual: púrpura `#7C3AED`
-- Eslogan: **"Habla. Nosotros organizamos."**
-- Idioma UI: **Español**
+| Componente | Comportamiento |
+|------------|----------------|
+| `mock-records-store.ts` | Persistencia en AsyncStorage |
+| `mock-record-seed.ts` | Semilla desde `constants/mock-data.ts` |
+| `mock-voice-parser.ts` | Texto → records locales |
+| `mock-assistant-engine.ts` | Chat local sin API externa |
+| `records-service.ts` | API o mock con fallback automático |
 
-### Autenticación (mock)
+Home muestra *"Modo demo local — sin Supabase"* cuando `isMockMode` es true.
 
-- Email/contraseña mock
-- Google y Apple (simulados)
-- Registro con nombre
-- Sin backend persistente (sesión en memoria)
-
-### Onboarding
-
-1. Habla naturalmente
-2. La IA organiza todo
-3. Nunca olvides nada importante
-
-### Setup inicial
-
-- Nombre del usuario
-- Importar calendario (sí/no, placeholder)
-- Permisos: micrófono, notificaciones, calendario, ubicación
-
-### Preferencias de voz (`Perfil → Voz`)
-
-| Opción | Default | Comportamiento |
-|--------|---------|----------------|
-| Enviar audio automáticamente | **OFF** | Si OFF: escuchar antes de enviar. Si ON: envía al detener grabación. |
-
-Persistido en AsyncStorage (`@asistente/auto_send_voice`).
+**Backend:** `DEV_MOCK_AUTH=true` permite login/registro sin Supabase.
 
 ---
 
 ## Captura por voz e IA
 
-### Flujo
+### Flujo (modo producción)
 
 ```
 Audio grabado
-    → Whisper API (STT, español)
+    → Backend pipeline (process-voice-recording) o Whisper directo
     → Texto transcrito
-    → Endpoint IA (POST)
-    → Respuesta en chat + tareas/eventos nuevos
+    → Endpoint IA (POST) o mock-assistant-engine
+    → Respuesta en chat + records nuevos
+```
+
+### Flujo (modo mock)
+
+```
+Audio grabado
+    → Whisper (si configurado) o transcripción demo
+    → mock-voice-parser
+    → Records en AsyncStorage + respuesta en chat
 ```
 
 ### Archivos clave
 
 | Archivo | Función |
 |---------|---------|
-| `src/components/voice-capture-sheet.tsx` | Modal de grabación/revisión/envío |
-| `src/services/whisper-service.ts` | Transcripción con OpenAI Whisper |
-| `src/services/assistant-api.ts` | Llamada al endpoint de IA |
-| `src/context/assistant-context.tsx` | Estado del chat, tareas, eventos |
+| `voice-capture-sheet.tsx` | Modal grabación / revisión / envío |
+| `whisper-service.ts` | Transcripción OpenAI (opcional) |
+| `audio/process-voice-recording.ts` | Pipeline backend con jobs |
+| `assistant-api.ts` | Llamada al endpoint de IA |
+| `mock/mock-assistant-engine.ts` | Chat local en modo demo |
+| `assistant-context.tsx` | Estado global: records, chat, voz |
 
-### Sin mocks de conversación
+### Chat texto
 
-La v1 **no usa respuestas simuladas** en el chat. Si falta configuración o el endpoint falla, se muestra un error claro al usuario.
+- Con `EXPO_PUBLIC_ASSISTANT_API_URL` configurado → API externa.
+- Sin API o en mock → `mock-assistant-engine`.
 
 ---
 
-## Agenda y reportes
+## Recordatorios inteligentes
 
-### Filtros de agenda
+Implementado con `expo-notifications` (notificaciones locales).
 
-| Modo | Descripción |
-|------|-------------|
-| **Día** | Solo hoy |
-| **Semana** | Semana actual |
-| **Mes** | Mes actual |
-| **Rango** | Calendario visual + presets (7 días, 30 días, 3 meses, 1 año) |
+### Reglas por prioridad
 
-En modo **Rango** puedes seleccionar cualquier periodo histórico (ej. hace 3 meses, hace 1 año) tocando inicio y fin en el calendario.
+| Prioridad | Avisos programados |
+|-----------|-------------------|
+| Alta | 7d, 3d, mañana, hoy + 1h antes |
+| Media | 3d, mañana, hoy + 1h antes |
+| Baja | mañana, hoy |
 
-### Reporte de productividad (PDF)
+Solo aplica a `task`, `meeting` y `reminder` pendientes con fecha.
 
-Disponible en **Agenda** (completo) e **Inicio** (compacto).
-
-**Presets:** Semanal · Mensual · Trimestral · Anual · Rango personalizado
-
-**Métricas incluidas:**
-
-- Tareas totales, completadas, pendientes
-- Tasa de completado (%)
-- Eficiencia (tareas completadas a tiempo vs estimado)
-- Tiempo promedio de completado
-- Categorías con más tareas
-- Día de la semana con más carga
-- Tarea más repetida
-- Categoría que más demora
-
-**Recomendaciones automáticas** (ejemplos):
-
-- "El lunes es tu día con más tareas — distribuye la carga"
-- "Las tareas de Trabajo demoran más — divídelas en pasos"
-- "Configura tareas recurrentes para las que se repiten"
-
-**Exportar:** botón "Descargar reporte PDF" → genera PDF con `expo-print` y comparte con `expo-sharing`.
-
-### Archivos de reportes
+### Archivos
 
 | Archivo | Función |
 |---------|---------|
-| `src/utils/date-utils.ts` | Rangos, calendario, formateo |
-| `src/components/date-range-calendar.tsx` | Selector visual de rango |
-| `src/components/report-panel.tsx` | UI de reporte + exportar |
-| `src/services/report-analytics.ts` | Cálculo de métricas |
-| `src/services/report-pdf.ts` | Generación HTML → PDF |
+| `reminders/reminder-rules.ts` | Cálculo de offsets |
+| `reminders/reminder-notifications.ts` | Permisos, canal Android, schedule |
+| `hooks/use-reminder-sync.ts` | Sincroniza al cambiar records |
+| `components/reminder-sync.tsx` | Montado en `(main)/_layout.tsx` |
+
+Toggle en **Perfil → Notificaciones → Recordatorios inteligentes**.
+
+En web las notificaciones se omiten (`Platform.OS === 'web'`).
 
 ---
 
-## Accesos rápidos
+## Agenda, Memoria y Finanzas
 
-### Activos en v1
+### Agenda
 
-| Acceso | Cómo usarlo |
-|--------|-------------|
-| **Ícono de la app (long press)** | Mantén presionado → "Hablar" o "¿Qué tengo hoy?" |
-| **Deep link** | `asistente://capture` abre captura de voz |
-| **FAB 🎤** | Siempre visible dentro de la app |
+Vistas: **Día**, **Semana**, **Mes**. Sin rango personalizado ni exportación PDF (eliminados en refactor).
 
-Implementado con `expo-quick-actions`. Requiere **build nativo** (no Expo Go completo).
+### Memoria
 
-### Próximamente (listados en Perfil)
+Lista filtrable de todos los `records`: notas, tareas, reuniones, gastos, etc.
 
-- Widget pantalla de inicio
-- Pantalla bloqueada
-- Botón de volumen
-- Doble toque atrás (Android)
-- Dynamic Island / Live Activities
-- Reloj inteligente
-- Auriculares
-- Comando de voz del sistema (Siri / Google)
+- Búsqueda por título, descripción, categoría, cliente o proyecto
+- Filtros rápidos por tipo (tareas, reuniones, gastos, notas…)
+
+### Finanzas
+
+Resumen mensual (ingresos / gastos) + lista de movimientos `expense` / `income`.
+
+Insight en Home: comparación de gastos semana actual vs anterior.
+
+### Insights en Home
+
+Generados por `insight-engine.ts`:
+
+- Pendientes para hoy (`due_today`)
+- Tareas urgentes
+- Próxima reunión
+- Alerta de gastos semanales
+- Recordatorios
+- Mensaje positivo (racha de completadas)
 
 ---
 
@@ -298,16 +313,17 @@ Implementado con `expo-quick-actions`. Requiere **build nativo** (no Expo Go com
 Copia `.env.example` a `.env`:
 
 ```env
-# Whisper (OpenAI)
-EXPO_PUBLIC_OPENAI_API_KEY=sk-...
+# Backend API
+EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api
 
-# Endpoint del asistente IA
-EXPO_PUBLIC_ASSISTANT_API_URL=https://tu-api.com/assistant/chat
+# Modo demo local (true mientras no haya Supabase)
+EXPO_PUBLIC_USE_MOCK_DATA=true
 
-# Opcionales
-# EXPO_PUBLIC_WHISPER_API_URL=...
-# EXPO_PUBLIC_WHISPER_MODEL=whisper-1
-# EXPO_PUBLIC_WHISPER_LANGUAGE=es
+# Whisper (opcional, si no usas backend para STT)
+EXPO_PUBLIC_OPENAI_API_KEY=sk-your-key-here
+
+# Assistant AI endpoint (opcional en mock)
+EXPO_PUBLIC_ASSISTANT_API_URL=https://your-api.com/assistant/chat
 ```
 
 Reinicia Expo tras cambiar variables.
@@ -318,160 +334,98 @@ Reinicia Expo tras cambiar variables.
 
 ```
 src/
-├── app/                    # Rutas expo-router
-│   ├── _layout.tsx         # Root layout + providers
-│   ├── splash.tsx
-│   ├── onboarding.tsx
-│   ├── login.tsx
-│   ├── register.tsx
-│   ├── setup.tsx
+├── app/
+│   ├── _layout.tsx
+│   ├── splash.tsx, onboarding.tsx, login.tsx, register.tsx, setup.tsx
 │   └── (main)/
-│       ├── _layout.tsx     # Tabs + FAB + voz
-│       ├── index.tsx       # Inicio
-│       ├── chat.tsx        # Conversar
-│       ├── agenda.tsx      # Agenda + reportes
-│       ├── tasks.tsx       # Tareas
-│       ├── profile.tsx     # Perfil
-│       └── capture.tsx     # Deep link voz
+│       ├── _layout.tsx      # Stack + ReminderSync + FAB
+│       ├── index.tsx        # Home (insights + chat)
+│       ├── memory.tsx
+│       ├── agenda.tsx
+│       ├── finances.tsx
+│       ├── profile.tsx
+│       ├── chat.tsx         # redirect → /
+│       ├── tasks.tsx        # redirect → /memory
+│       └── capture.tsx
 ├── components/
+│   ├── insight-card.tsx
+│   ├── secondary-nav-links.tsx
+│   ├── screen-header.tsx
+│   ├── reminder-sync.tsx
 │   ├── voice-capture-sheet.tsx
-│   ├── voice-home-card.tsx
 │   ├── floating-mic-button.tsx
-│   ├── date-range-calendar.tsx
-│   ├── report-panel.tsx
-│   ├── chat-bubble.tsx
-│   └── app-tabs.tsx
+│   └── auth/
 ├── context/
-│   ├── auth-context.tsx
 │   ├── assistant-context.tsx
+│   ├── auth-context.tsx
 │   ├── app-flow-context.tsx
 │   ├── user-preferences-context.tsx
 │   └── voice-capture-context.tsx
 ├── services/
+│   ├── records/             # API + records-service (mock fallback)
+│   ├── mock/                # Demo local
+│   ├── reminders/           # Notificaciones locales
+│   ├── insight-engine.ts
+│   ├── finance-analytics.ts
 │   ├── whisper-service.ts
-│   ├── assistant-api.ts
-│   ├── report-analytics.ts
-│   ├── report-pdf.ts
-│   └── chat-utils.ts
-├── screens/
-│   ├── SplashScreen.tsx
-│   ├── OnboardingScreen.tsx
-│   ├── SetupScreen.tsx
-│   └── auth/
+│   └── assistant-api.ts
 ├── types/
-│   ├── assistant.ts
-│   └── api.ts
-├── utils/
-│   └── date-utils.ts
+│   ├── record.ts, insight.ts, assistant.ts, api.ts
+├── hooks/
+│   ├── use-reminder-sync.ts
+│   └── use-quick-actions-setup.ts
 ├── constants/
-│   └── mock-data.ts
+│   ├── mock-data.ts         # Semilla demo
+│   └── labels.ts
 └── config/
     └── api.ts
 ```
 
 ---
 
-## API del backend (pendiente)
+## Fases completadas
 
-### POST `EXPO_PUBLIC_ASSISTANT_API_URL`
+| Fase | Descripción |
+|------|-------------|
+| 0 | Tipos `Record` e `Insight` |
+| 1 | Stack sin tabs + placeholders |
+| 2 | Home rediseñado: insights + chat fusionado |
+| 3 | Onboarding fusionado (setup eliminado) |
+| 4 | Backend records + `assistant-context` refactor |
+| 6–7 | Agenda simplificada, Finanzas, limpieza reportes PDF |
+| Mock | Capa demo local con AsyncStorage |
+| 10 | Recordatorios inteligentes (`expo-notifications`) |
+| 11 | Documentación actualizada |
+| 5 | Memoria con búsqueda y filtros por tipo |
+| 8 | Perfil secundario (integraciones colapsables) |
+| 9 | Limpieza de archivos huérfanos |
 
-**Request:**
+### Eliminado en refactor
 
-```json
-{
-  "message": "Recuérdame llamar a Carlos mañana",
-  "userName": "Carlos",
-  "userEmail": "carlos@email.com",
-  "context": {
-    "tasks": [...],
-    "events": [...]
-  }
-}
-```
-
-**Response:**
-
-```json
-{
-  "reply": "Listo, creé el recordatorio.",
-  "newTasks": [{
-    "id": "unique-id",
-    "title": "Llamar a Carlos",
-    "scheduledAt": "2026-07-03",
-    "priority": "medium",
-    "status": "pending",
-    "category": "Personal",
-    "tags": []
-  }],
-  "newEvents": [],
-  "completedTaskIds": []
-}
-```
-
-### Campos importantes en tareas
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `scheduledAt` | `YYYY-MM-DD` | Fecha para agenda y reportes |
-| `completedAt` | ISO string | Cuándo se completó |
-| `estimatedMinutes` | number | Tiempo estimado |
-| `actualMinutes` | number | Tiempo real (para eficiencia) |
-| `category` | string | Trabajo, Personal, Salud, etc. |
+- 5 tabs (`app-tabs.tsx`)
+- `SetupScreen.tsx` (fusionado en onboarding)
+- Reportes PDF (`report-panel`, `report-pdf`, `report-analytics`)
+- Calendario de rango (`date-range-calendar.tsx`)
+- Tab Conversar y Tareas como pantallas independientes
 
 ---
 
-## Changelog v1
+## Roadmap
 
-### Agregado
-
-- Identidad "Asistente" con eslogan
-- Onboarding 3 pantallas + setup inicial
-- Auth: Google, Apple, correo (mock)
-- 5 tabs: Inicio, Conversar, Agenda, Tareas, Perfil
-- Chat con IA vía endpoint externo
-- Whisper para speech-to-text
-- Captura por voz con revisión o envío automático
-- FAB micrófono global
-- Quick actions (ícono app + deep link)
-- Agenda con filtros: día, semana, mes, rango personalizado
-- Calendario visual para seleccionar rango de fechas
-- Reportes PDF: semanal, mensual, trimestral, anual, custom
-- Métricas de productividad y recomendaciones
-- Tema claro/oscuro
-- Documentación v1 (este archivo)
-
-### Removido / reemplazado
-
-- Motor mock de conversaciones (`assistant-engine.ts`) → reemplazado por Whisper + API
-- Transcripción simulada de voz
-- 3 tabs originales → 5 tabs
-- Splash genérico → splash con eslogan
-
-### Datos
-
-- Tareas y eventos usan datos mock locales con historial de hasta 1 año
-- Sin persistencia en backend (se pierde al cerrar sesión)
+- Conectar Supabase real (`EXPO_PUBLIC_USE_MOCK_DATA=false`)
+- Push notifications remotas (actualmente solo locales)
+- Widget, lock screen, integraciones externas
+- Trabajo en equipo
 
 ---
 
-## Roadmap (no incluido en v1)
-
-- Backend real (auth, DB, sync)
-- Widget, lock screen, auriculares, reloj
-- Integraciones: calendario, WhatsApp, Slack, Notion
-- Notificaciones push inteligentes
-- Trabajo en equipo y asignación de tareas
-- Modo automóvil
-
----
-
-## Contacto y convenciones
+## Convenciones
 
 - **Código y nombres:** inglés
 - **UI y documentación:** español
-- **Commits:** describir el "por qué", no solo el "qué"
-- **Expo docs:** siempre verificar versión en https://docs.expo.dev/versions/v56.0.0/
+- **Marca:** púrpura `#7C3AED`
+- **Expo docs:** https://docs.expo.dev/
 
 ---
 
-*Última actualización: v1.0.0 — Julio 2026*
+*Última actualización: v2.0.0 — Julio 2026*

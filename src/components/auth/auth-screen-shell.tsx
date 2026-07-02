@@ -5,7 +5,7 @@ import {
   ScrollView,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenSafeArea } from '@/components/screen-safe-area';
 
 import { AuthBackButton } from '@/components/auth/auth-back-button';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -17,7 +17,7 @@ type AuthScreenShellProps = {
 
 export function AuthScreenShell({ children, onBack }: AuthScreenShellProps) {
   return (
-    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
+    <ScreenSafeArea>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1">
@@ -32,6 +32,6 @@ export function AuthScreenShell({ children, onBack }: AuthScreenShellProps) {
           <View className="w-full max-w-md gap-8 self-center">{children}</View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }

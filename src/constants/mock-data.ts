@@ -1,4 +1,5 @@
 import type { CalendarEvent, ReminderItem, TaskItem } from '@/types/assistant';
+import type { MemoryRecord } from '@/types/record';
 import { daysAgoIso, daysFromNowIso, todayIso } from '@/utils/date-utils';
 
 export const INITIAL_TASKS: TaskItem[] = [
@@ -259,22 +260,62 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
   },
 ];
 
+export const INITIAL_FINANCE: MemoryRecord[] = [
+  {
+    id: 'exp-gas',
+    type: 'expense',
+    title: 'Gasolina',
+    amount: 80,
+    currency: 'USD',
+    category: 'Transporte',
+    scheduledAt: daysAgoIso(1),
+    createdAt: daysAgoIso(1),
+  },
+  {
+    id: 'exp-market',
+    type: 'expense',
+    title: 'Supermercado',
+    amount: 120,
+    currency: 'USD',
+    category: 'Hogar',
+    scheduledAt: daysAgoIso(3),
+    createdAt: daysAgoIso(3),
+  },
+  {
+    id: 'exp-prev-1',
+    type: 'expense',
+    title: 'Internet',
+    amount: 45,
+    currency: 'USD',
+    category: 'Servicios',
+    scheduledAt: daysAgoIso(10),
+    createdAt: daysAgoIso(10),
+  },
+  {
+    id: 'exp-prev-2',
+    type: 'expense',
+    title: 'Almuerzo',
+    amount: 25,
+    currency: 'USD',
+    category: 'Comida',
+    scheduledAt: daysAgoIso(12),
+    createdAt: daysAgoIso(12),
+  },
+  {
+    id: 'inc-client',
+    type: 'income',
+    title: 'Pago de cliente',
+    amount: 500,
+    currency: 'USD',
+    category: 'Trabajo',
+    client: 'Acme',
+    scheduledAt: daysAgoIso(5),
+    createdAt: daysAgoIso(5),
+  },
+];
+
 export const INITIAL_REMINDERS: ReminderItem[] = [
   { id: 'r1', title: 'Llamar a Carlos', timeLabel: 'Al salir del trabajo' },
   { id: 'r2', title: 'Comprar café', timeLabel: 'Esta tarde' },
   { id: 'r3', title: 'Enviar factura', timeLabel: 'Antes de las 5 PM' },
 ];
-
-export const PRIORITY_LABELS: Record<string, string> = {
-  high: 'Alta',
-  medium: 'Media',
-  low: 'Baja',
-};
-
-export const REPORT_PRESET_LABELS = {
-  week: 'Semanal',
-  month: 'Mensual',
-  quarter: 'Trimestral',
-  year: 'Anual',
-  custom: 'Rango personalizado',
-} as const;

@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenSafeArea } from '@/components/screen-safe-area';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
@@ -22,6 +22,7 @@ import {
 import { useAuth } from '@/context/auth-context';
 import { useSubscription } from '@/context/subscription-context';
 import { useUserPreferences, type AppLanguage } from '@/context/user-preferences-context';
+import { ensureNotificationPermissions } from '@/services/reminders/reminder-notifications';
 
 export type ProfileSheetType =
   | 'personal'
@@ -41,7 +42,7 @@ export function ProfileSettingsSheet({ type, onClose }: ProfileSettingsSheetProp
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
+      <ScreenSafeArea>
         <View className="flex-row items-center justify-between border-b border-border px-5 py-4 dark:border-border-dark">
           <Text className="text-lg font-bold text-foreground dark:text-foreground-dark">
             {titles[type]}
@@ -58,7 +59,7 @@ export function ProfileSettingsSheet({ type, onClose }: ProfileSettingsSheetProp
           {type === 'language' ? <LanguageSettings /> : null}
           {type === 'subscription' ? <SubscriptionSettings /> : null}
         </ScrollView>
-      </SafeAreaView>
+      </ScreenSafeArea>
     </Modal>
   );
 }
@@ -146,13 +147,27 @@ function NotificationSettings() {
     setReminderNotifications,
   } = useUserPreferences();
 
+  async function handlePushChange(value: boolean) {
+    if (value) {
+      await ensureNotificationPermissions();
+    }
+    await setPushNotifications(value);
+  }
+
+  async function handleReminderChange(value: boolean) {
+    if (value) {
+      await ensureNotificationPermissions();
+    }
+    await setReminderNotifications(value);
+  }
+
   return (
     <View className="gap-3">
       <SettingToggle
         label="Notificaciones push"
         description="Alertas en tu teléfono"
         value={pushNotifications}
-        onValueChange={setPushNotifications}
+        onValueChange={handlePushChange}
       />
       <SettingToggle
         label="Notificaciones por correo"
@@ -162,9 +177,9 @@ function NotificationSettings() {
       />
       <SettingToggle
         label="Recordatorios inteligentes"
-        description="Avisos contextuales antes de tus tareas"
+        description="7d, 3d, mañana, hoy y 1h antes según prioridad"
         value={reminderNotifications}
-        onValueChange={setReminderNotifications}
+        onValueChange={handleReminderChange}
       />
     </View>
   );

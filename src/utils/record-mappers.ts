@@ -1,0 +1,117 @@
+import type { CalendarEvent, ReminderItem, TaskItem } from '@/types/assistant';
+import type { ApiRecord, UpdateRecordPayload } from '@/types/record-api';
+import type { MemoryRecord } from '@/types/record';
+import { relativeDayLabel, todayIso } from '@/utils/date-utils';
+
+function readString(data: Record<string, unknown>, key: string): string | undefined {
+  const value = data[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function readStringArray(data: Record<string, unknown>, key: string): string[] {
+  const value = data[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+export function toScheduledAt(date: string | null | undefined): string {
+  if (!date) return todayIso();
+  return date.slice(0, 10);
+}
+
+export function formatTimeLabel(date: string | null | undefined): string {
+  if (!date) return '';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
+}
+
+export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
+  const data = record.data ?? {};
+  const status = readString(data, 'status');
+  const category = readString(data, 'category');
+
+  return {
+    id: record.id,
+    type: record.type,
+    title: record.title ?? 'Sin título',
+    description: record.description ?? undefined,
+    priority: record.priority ?? undefined,
+    status: status === 'completed' ? 'completed' : 'pending',
+    scheduledAt: toScheduledAt(record.date),
+    dueAtIso: record.date ?? undefined,
+    dueLabel: record.date ? relativeDayLabel(toScheduledAt(record.date)) : undefined,
+    category,
+    client: record.client ?? undefined,
+    project: record.project ?? undefined,
+    amount: record.amount ?? undefined,
+    currency: record.currency ?? undefined,
+    time: formatTimeLabel(record.date),
+    tags: readStringArray(data, 'tags'),
+    createdAt: record.created_at,
+    completedAt: readString(data, 'completedAt'),
+  };
+}
+
+export function memoryRecordToTask(record: MemoryRecord): TaskItem | null {
+  if (record.type !== 'task') return null;
+
+  return {
+    id: record.id,
+    title: record.title,
+    description: record.description,
+    dueLabel: record.dueLabel,
+    scheduledAt: record.scheduledAt ?? todayIso(),
+    completedAt: record.completedAt,
+    createdAt: record.createdAt,
+    priority: record.priority ?? 'medium',
+    status: record.status === 'completed' ? 'completed' : 'pending',
+    category: record.category ?? 'General',
+    tags: record.tags ?? [],
+  };
+}
+
+export function memoryRecordToEvent(record: MemoryRecord): CalendarEvent | null {
+  if (record.type !== 'meeting' && record.type !== 'reminder') {
+    return null;
+  }
+
+  const scheduledAt = record.scheduledAt ?? todayIso();
+  const eventType = record.type === 'meeting' ? 'meeting' : 'reminder';
+
+  return {
+    id: record.id,
+    title: record.title,
+    date: scheduledAt,
+    scheduledAt,
+    time: record.time || 'Sin hora',
+    type: eventType,
+    location: record.location,
+  };
+}
+
+export function buildRemindersFromRecords(records: MemoryRecord[]): ReminderItem[] {
+  return records
+    .filter((record) => record.type === 'reminder' || record.type === 'task')
+    .filter((record) => record.status !== 'completed')
+    .slice(0, 5)
+    .map((record) => ({
+      id: record.id,
+      title: record.title,
+      timeLabel: record.dueLabel ?? record.time,
+    }));
+}
+
+export function buildRecordStatusPatch(
+  record: ApiRecord,
+  status: 'pending' | 'completed',
+): UpdateRecordPayload {
+  const data = { ...(record.data ?? {}) };
+  data.status = status;
+  if (status === 'completed') {
+    data.completedAt = new Date().toISOString();
+  } else {
+    delete data.completedAt;
+  }
+  return { data };
+}

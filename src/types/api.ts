@@ -43,6 +43,17 @@ export type AssistantChatRequest = {
   context: {
     tasks: TaskItem[];
     events: CalendarEvent[];
+    records?: Array<{
+      id: string;
+      type: string;
+      title: string;
+      description?: string;
+      scheduledAt?: string;
+      client?: string;
+      project?: string;
+      amount?: number;
+      currency?: string;
+    }>;
   };
 };
 

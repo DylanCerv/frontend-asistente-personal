@@ -10,7 +10,7 @@ ExpoSplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function SplashRoute() {
   const { isAuthenticated, isBootstrapping } = useAuth();
-  const { isFlowLoading, hasCompletedOnboarding, hasCompletedSetup } = useAppFlow();
+  const { isFlowLoading, hasCompletedOnboarding } = useAppFlow();
 
   const isLoading = isBootstrapping || isFlowLoading;
 
@@ -24,16 +24,12 @@ export default function SplashRoute() {
     return <SplashScreen />;
   }
 
-  if (!hasCompletedOnboarding) {
-    return <Redirect href="/onboarding" />;
-  }
-
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
   }
 
-  if (!hasCompletedSetup) {
-    return <Redirect href="/setup" />;
+  if (!hasCompletedOnboarding) {
+    return <Redirect href="/onboarding" />;
   }
 
   return <Redirect href="/" />;

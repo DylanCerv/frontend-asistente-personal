@@ -12,7 +12,7 @@ import {
 } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomInset } from '@/components/screen-safe-area';
 
 import { useAssistant } from '@/context/assistant-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
@@ -51,7 +51,7 @@ function formatDuration(durationMillis: number) {
 }
 
 export function VoiceCaptureSheet() {
-  const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset(24);
   const { isOpen, autoStart, closeCapture } = useVoiceCapture();
   const { sendVoiceMessage } = useAssistant();
   const { autoSendVoice } = useUserPreferences();
@@ -213,7 +213,7 @@ export function VoiceCaptureSheet() {
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="gap-5 rounded-t-[32px] border border-border bg-surface px-6 pt-6 dark:border-border-dark dark:bg-surface-dark"
-          style={{ paddingBottom: insets.bottom + 24 }}>
+          style={{ paddingBottom: bottomInset }}>
           <View className="self-center h-1 w-10 rounded-full bg-border dark:bg-border-dark" />
 
           <View className="items-center gap-2">

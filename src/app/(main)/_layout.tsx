@@ -1,8 +1,8 @@
-import { Redirect } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { View } from 'react-native';
 
-import AppTabs from '@/components/app-tabs';
 import { FloatingMicButton } from '@/components/floating-mic-button';
+import { ReminderSync } from '@/components/reminder-sync';
 import { VoiceCaptureSheet } from '@/components/voice-capture-sheet';
 import { AssistantProvider } from '@/context/assistant-context';
 import { useAuth } from '@/context/auth-context';
@@ -14,7 +14,21 @@ function MainShell() {
 
   return (
     <View className="flex-1">
-      <AppTabs />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="memory" />
+        <Stack.Screen name="agenda" />
+        <Stack.Screen name="finances" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="capture" />
+        <Stack.Screen name="chat" />
+        <Stack.Screen name="tasks" />
+      </Stack>
+      <ReminderSync />
       <FloatingMicButton />
       <VoiceCaptureSheet />
     </View>

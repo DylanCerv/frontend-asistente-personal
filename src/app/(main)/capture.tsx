@@ -1,3 +1,4 @@
+import { ScreenSafeArea } from '@/components/screen-safe-area';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 
@@ -10,5 +11,9 @@ export default function CaptureScreen() {
     openCapture({ autoStart: true });
   }, [openCapture]);
 
-  return <View className="flex-1 bg-canvas dark:bg-canvas-dark" />;
+  return (
+    <ScreenSafeArea>
+      <View className="flex-1" />
+    </ScreenSafeArea>
+  );
 }

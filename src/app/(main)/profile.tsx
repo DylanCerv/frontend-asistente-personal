@@ -2,13 +2,15 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenSafeArea } from '@/components/screen-safe-area';
 
 import {
   ProfileSettingsSheet,
   type ProfileSheetType,
 } from '@/components/profile-settings-sheet';
+import { ScreenHeader } from '@/components/screen-header';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useAppFlow } from '@/context/app-flow-context';
 import { useAuth } from '@/context/auth-context';
 import { useSubscription } from '@/context/subscription-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
@@ -61,11 +63,18 @@ const SETTINGS_MENU = [
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { resetFlow } = useAppFlow();
   const { autoSendVoice, setAutoSendVoice, language } = useUserPreferences();
   const { plan } = useSubscription();
   const [activeSheet, setActiveSheet] = useState<ProfileSheetType>(null);
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showComingQuickAccess, setShowComingQuickAccess] = useState(false);
+
+  const availableQuickAccess = QUICK_ACCESS_OPTIONS.filter((item) => item.status === 'available');
+  const comingQuickAccess = QUICK_ACCESS_OPTIONS.filter((item) => item.status === 'coming');
 
   function handleSignOut() {
+    void resetFlow();
     signOut();
     router.replace('/login');
   }
@@ -79,16 +88,9 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
-      <ScrollView contentContainerClassName="w-full max-w-3xl gap-6 self-center px-6 pb-36 pt-3">
-        <View className="gap-1">
-          <Text className="text-[30px] font-bold text-foreground dark:text-foreground-dark">
-            Perfil
-          </Text>
-          <Text className="text-[15px] text-subtle dark:text-subtle-dark">
-            Cuenta, integraciones y preferencias
-          </Text>
-        </View>
+    <ScreenSafeArea>
+      <ScreenHeader title="Perfil" subtitle="Cuenta, integraciones y preferencias" />
+      <ScrollView contentContainerClassName="w-full max-w-3xl gap-6 self-center px-6 pb-36 pt-4">
 
         <View className="overflow-hidden rounded-[32px] border border-border bg-muted dark:border-border-dark dark:bg-muted-dark">
           <View className="items-center gap-4 px-6 pb-6 pt-8">
@@ -171,7 +173,7 @@ export default function ProfileScreen() {
           <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
             Accesos rápidos
           </Text>
-          {QUICK_ACCESS_OPTIONS.map((item) => (
+          {availableQuickAccess.map((item) => (
             <View
               key={item.id}
               className="flex-row items-start gap-3 rounded-2xl bg-canvas p-3 dark:bg-canvas-dark">
@@ -186,25 +188,78 @@ export default function ProfileScreen() {
               </View>
             </View>
           ))}
+          {comingQuickAccess.length > 0 ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowComingQuickAccess((value) => !value)}
+                className="flex-row items-center justify-between rounded-2xl bg-canvas px-3 py-3 dark:bg-canvas-dark">
+                <Text className="text-sm font-medium text-subtle dark:text-subtle-dark">
+                  Próximamente ({comingQuickAccess.length})
+                </Text>
+                <Ionicons
+                  name={showComingQuickAccess ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color="#6B6475"
+                />
+              </Pressable>
+              {showComingQuickAccess
+                ? comingQuickAccess.map((item) => (
+                    <View
+                      key={item.id}
+                      className="flex-row items-start gap-3 rounded-2xl bg-canvas p-3 opacity-70 dark:bg-canvas-dark">
+                      <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                        <Ionicons name={item.icon} size={20} color="#7C3AED" />
+                      </View>
+                      <View className="flex-1 gap-1">
+                        <Text className="text-[15px] font-medium text-foreground dark:text-foreground-dark">
+                          {item.label}
+                        </Text>
+                        <Text className="text-xs text-subtle dark:text-subtle-dark">
+                          {item.description}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                : null}
+            </>
+          ) : null}
         </View>
 
-        <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
-          <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
-            Integraciones
-          </Text>
-          {INTEGRATIONS.map((item) => (
-            <View
-              key={item.id}
-              className="flex-row items-center gap-3 rounded-2xl bg-canvas p-3 dark:bg-canvas-dark">
-              <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
-                <Ionicons name={item.icon} size={20} color="#7C3AED" />
-              </View>
-              <Text className="flex-1 text-[15px] font-medium text-foreground dark:text-foreground-dark">
-                {item.label}
+        <View className="gap-3 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setShowIntegrations((value) => !value)}
+            className="flex-row items-center justify-between">
+            <View className="gap-1">
+              <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
+                Integraciones
               </Text>
-              <Text className="text-xs text-subtle dark:text-subtle-dark">{item.status}</Text>
+              <Text className="text-xs text-subtle dark:text-subtle-dark">
+                Calendario, correo y más — próximamente
+              </Text>
             </View>
-          ))}
+            <Ionicons
+              name={showIntegrations ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color="#6B6475"
+            />
+          </Pressable>
+          {showIntegrations
+            ? INTEGRATIONS.map((item) => (
+                <View
+                  key={item.id}
+                  className="flex-row items-center gap-3 rounded-2xl bg-canvas p-3 dark:bg-canvas-dark">
+                  <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                    <Ionicons name={item.icon} size={20} color="#7C3AED" />
+                  </View>
+                  <Text className="flex-1 text-[15px] font-medium text-foreground dark:text-foreground-dark">
+                    {item.label}
+                  </Text>
+                  <Text className="text-xs text-subtle dark:text-subtle-dark">{item.status}</Text>
+                </View>
+              ))
+            : null}
         </View>
 
         <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
@@ -226,6 +281,6 @@ export default function ProfileScreen() {
       </ScrollView>
 
       <ProfileSettingsSheet type={activeSheet} onClose={() => setActiveSheet(null)} />
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }

@@ -1,3 +1,5 @@
+import type { ApiRecord } from '@/types/record-api';
+
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export type StructuredDataType =
@@ -21,15 +23,13 @@ export interface StructuredData {
   currency?: string | null;
 }
 
-export interface JobRecord {
-  id: string;
-  [key: string]: unknown;
-}
+export interface JobRecord extends ApiRecord {}
 
 export interface JobResult {
   transcription: string;
-  structuredData: StructuredData;
-  record: JobRecord;
+  structuredData: StructuredData | { items?: StructuredData[]; summary?: string | null };
+  records?: ApiRecord[];
+  record: JobRecord | null;
 }
 
 export interface UploadAudioResponse {

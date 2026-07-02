@@ -1,10 +1,10 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenSafeArea } from '@/components/screen-safe-area';
 
 export function SplashScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
+    <ScreenSafeArea>
       <View className="flex-1 items-center justify-center gap-10 px-6">
         <View className="items-center gap-5">
           <View className="h-24 w-24 items-center justify-center rounded-[28px] bg-brand dark:bg-brand-dark">
@@ -20,6 +20,6 @@ export function SplashScreen() {
           </View>
         </View>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }

@@ -1,27 +1,19 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 
 import { useAppFlow } from '@/context/app-flow-context';
 import { useAuth } from '@/context/auth-context';
-import { SetupScreen } from '@/screens/SetupScreen';
 
-export default function SetupRoute() {
-  const router = useRouter();
-  const { isAuthenticated, user, updateDisplayName } = useAuth();
-  const { hasCompletedSetup, completeSetup } = useAppFlow();
+export default function SetupRedirect() {
+  const { isAuthenticated } = useAuth();
+  const { hasCompletedOnboarding } = useAppFlow();
 
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
   }
 
-  if (hasCompletedSetup) {
-    return <Redirect href="/" />;
+  if (!hasCompletedOnboarding) {
+    return <Redirect href="/onboarding" />;
   }
 
-  async function handleComplete(displayName: string) {
-    updateDisplayName(displayName);
-    await completeSetup();
-    router.replace('/');
-  }
-
-  return <SetupScreen onComplete={handleComplete} initialName={user?.name} />;
+  return <Redirect href="/" />;
 }

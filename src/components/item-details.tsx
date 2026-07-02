@@ -1,7 +1,7 @@
 import { Text, View } from 'react-native';
 
 import { DetailRow } from '@/components/expandable-item-card';
-import { PRIORITY_LABELS } from '@/constants/mock-data';
+import { PRIORITY_LABELS } from '@/constants/labels';
 import type { CalendarEvent, TaskItem } from '@/types/assistant';
 import { formatLongDate } from '@/utils/date-utils';
 

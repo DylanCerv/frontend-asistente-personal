@@ -1,7 +1,8 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRef, useState } from 'react';
-import { Dimensions, FlatList, Pressable, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Dimensions, FlatList, Pressable, Text, View } from 'react-native';
+import { ScreenSafeArea } from '@/components/screen-safe-area';
 
 import { Button } from '@/components/ui/button';
 
@@ -11,33 +12,56 @@ const SLIDES = [
   {
     icon: 'mic-outline' as const,
     title: 'Habla naturalmente',
-    description: 'No escribas listas. Solo di lo que necesitas recordar, como si hablaras con una persona.',
+    description:
+      'No escribas listas. Solo di lo que necesitas recordar, como si hablaras con una persona.',
   },
   {
     icon: 'sparkles-outline' as const,
     title: 'La IA organiza todo',
-    description: 'Eventos, tareas, recordatorios y notas. Todo clasificado automáticamente sin que elijas carpetas.',
+    description:
+      'Eventos, tareas, recordatorios y notas. Todo clasificado automáticamente sin que elijas carpetas.',
   },
   {
     icon: 'notifications-outline' as const,
     title: 'Nunca olvides nada importante',
-    description: 'Recordatorios inteligentes que te avisan a tiempo, no solo a la hora exacta.',
+    description:
+      'Recordatorios inteligentes que te avisan a tiempo, no solo a la hora exacta.',
   },
 ] as const;
 
-type OnboardingScreenProps = {
-  onComplete: () => void;
+type OnboardingPhase = 'slides' | 'permissions';
+
+export type OnboardingCompleteOptions = {
+  notificationsEnabled: boolean;
 };
 
-export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+type OnboardingScreenProps = {
+  userName?: string;
+  onComplete: (options: OnboardingCompleteOptions) => void | Promise<void>;
+};
+
+export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps) {
+  const [phase, setPhase] = useState<OnboardingPhase>('slides');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [micGranted, setMicGranted] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const listRef = useRef<FlatList>(null);
 
-  const isLast = currentIndex === SLIDES.length - 1;
+  const isLastSlide = currentIndex === SLIDES.length - 1;
 
-  function handleNext() {
-    if (isLast) {
-      onComplete();
+  async function requestMicPermission() {
+    const result = await requestRecordingPermissionsAsync();
+    if (result.granted) {
+      setMicGranted(true);
+      return;
+    }
+    Alert.alert('Permiso requerido', 'El micrófono es esencial para usar el asistente por voz.');
+  }
+
+  function handleSlideNext() {
+    if (isLastSlide) {
+      setPhase('permissions');
       return;
     }
 
@@ -46,8 +70,109 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     setCurrentIndex(nextIndex);
   }
 
+  async function handleFinish() {
+    if (!micGranted) {
+      Alert.alert('Micrófono requerido', 'Activa el permiso de micrófono para continuar.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onComplete({ notificationsEnabled });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (phase === 'permissions') {
+    return (
+      <ScreenSafeArea>
+        <View className="flex-1 justify-center px-6">
+          <View className="w-full max-w-md gap-8 self-center">
+            <View className="items-center gap-3">
+              <View className="h-16 w-16 items-center justify-center rounded-3xl bg-muted dark:bg-muted-dark">
+                <Ionicons name="shield-checkmark-outline" size={32} color="#7C3AED" />
+              </View>
+              <Text className="text-center text-[26px] font-bold text-foreground dark:text-foreground-dark">
+                {userName ? `¡Hola, ${userName}!` : 'Último paso'}
+              </Text>
+              <Text className="text-center text-base text-subtle dark:text-subtle-dark">
+                Activa los permisos para que tu asistente funcione desde el primer día.
+              </Text>
+            </View>
+
+            <View className="gap-3">
+              <Pressable
+                accessibilityRole="button"
+                onPress={requestMicPermission}
+                className={`flex-row items-center gap-4 rounded-2xl border p-4 active:opacity-80 ${
+                  micGranted
+                    ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
+                    : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
+                }`}>
+                <View className="h-11 w-11 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                  <Ionicons name="mic-outline" size={22} color={micGranted ? '#7C3AED' : '#6B6475'} />
+                </View>
+                <View className="flex-1 gap-0.5">
+                  <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
+                    Micrófono
+                  </Text>
+                  <Text className="text-xs text-subtle dark:text-subtle-dark">
+                    Para capturar tus ideas por voz
+                  </Text>
+                </View>
+                <Ionicons
+                  name={micGranted ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={24}
+                  color={micGranted ? '#7C3AED' : '#6B6475'}
+                />
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setNotificationsEnabled((prev) => !prev)}
+                className={`flex-row items-center gap-4 rounded-2xl border p-4 active:opacity-80 ${
+                  notificationsEnabled
+                    ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
+                    : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
+                }`}>
+                <View className="h-11 w-11 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                  <Ionicons
+                    name="notifications-outline"
+                    size={22}
+                    color={notificationsEnabled ? '#7C3AED' : '#6B6475'}
+                  />
+                </View>
+                <View className="flex-1 gap-0.5">
+                  <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
+                    Notificaciones
+                  </Text>
+                  <Text className="text-xs text-subtle dark:text-subtle-dark">
+                    Para recordarte a tiempo
+                  </Text>
+                </View>
+                <Ionicons
+                  name={notificationsEnabled ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={24}
+                  color={notificationsEnabled ? '#7C3AED' : '#6B6475'}
+                />
+              </Pressable>
+            </View>
+
+            <Button
+              label="Empezar a usar el asistente"
+              onPress={handleFinish}
+              disabled={!micGranted || isSubmitting}
+              loading={isSubmitting}
+            />
+          </View>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark">
+    <ScreenSafeArea>
       <View className="flex-1">
         <View className="items-center gap-2 px-6 pt-8">
           <View className="h-14 w-14 items-center justify-center rounded-2xl bg-muted dark:bg-muted-dark">
@@ -96,15 +221,18 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             ))}
           </View>
 
-          <Button label={isLast ? 'Comenzar' : 'Siguiente'} onPress={handleNext} />
+          <Button label={isLastSlide ? 'Continuar' : 'Siguiente'} onPress={handleSlideNext} />
 
-          {!isLast ? (
-            <Pressable accessibilityRole="button" onPress={onComplete} className="items-center py-2">
+          {!isLastSlide ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setPhase('permissions')}
+              className="items-center py-2">
               <Text className="text-sm text-subtle dark:text-subtle-dark">Saltar</Text>
             </Pressable>
           ) : null}
         </View>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }

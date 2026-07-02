@@ -6,6 +6,10 @@ export const API_BASE_URL =
 export const POLL_INTERVAL_MS = 2500;
 export const MAX_POLL_DURATION_MS = 120_000;
 
+const USE_MOCK_DATA =
+  process.env.EXPO_PUBLIC_USE_MOCK_DATA === 'true' ||
+  Constants.expoConfig?.extra?.useMockData === true;
+
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 const WHISPER_API_URL =
   process.env.EXPO_PUBLIC_WHISPER_API_URL ?? 'https://api.openai.com/v1/audio/transcriptions';
@@ -19,14 +23,21 @@ export const apiConfig = {
   whisperModel: WHISPER_MODEL,
   whisperLanguage: WHISPER_LANGUAGE,
   assistantApiUrl: ASSISTANT_API_URL,
+  useMockData: USE_MOCK_DATA,
 } as const;
 
+export function isMockDataMode(): boolean {
+  return USE_MOCK_DATA;
+}
+
 export function isWhisperConfigured(): boolean {
-  if (apiConfig.openaiApiKey) return true;
+  if (!apiConfig.openaiApiKey || apiConfig.openaiApiKey.includes('your-key')) return false;
+  if (apiConfig.openaiApiKey === 'sk-your-key-here') return false;
   const isOpenAiDefault = apiConfig.whisperApiUrl.includes('api.openai.com');
-  return !isOpenAiDefault && Boolean(apiConfig.whisperApiUrl);
+  return !isOpenAiDefault || Boolean(apiConfig.openaiApiKey);
 }
 
 export function isAssistantApiConfigured(): boolean {
-  return Boolean(apiConfig.assistantApiUrl);
+  if (!apiConfig.assistantApiUrl) return false;
+  return !apiConfig.assistantApiUrl.includes('your-api.com');
 }
