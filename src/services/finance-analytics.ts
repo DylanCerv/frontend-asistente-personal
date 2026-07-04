@@ -1,5 +1,12 @@
 import type { MemoryRecord } from '@/types/record';
-import { addDays, startOfMonth, endOfMonth, todayIso } from '@/utils/date-utils';
+import {
+  addDays,
+  endOfMonth,
+  isDateInRange,
+  startOfMonth,
+  todayIso,
+  type DateRange,
+} from '@/utils/date-utils';
 
 export type FinanceSummary = {
   income: number;
@@ -33,15 +40,20 @@ export function getFinanceRecords(records: MemoryRecord[]): MemoryRecord[] {
     .sort((a, b) => getRecordDate(b).localeCompare(getRecordDate(a)));
 }
 
-export function buildMonthlyFinanceSummary(
+export function getFinanceRecordsInRange(
   records: MemoryRecord[],
-  referenceDate = todayIso(),
+  range: DateRange,
+): MemoryRecord[] {
+  return getFinanceRecords(records).filter((record) =>
+    isDateInRange(getRecordDate(record), range),
+  );
+}
+
+export function buildFinanceSummary(
+  records: MemoryRecord[],
+  range: DateRange,
 ): FinanceSummary {
-  const range = { start: startOfMonth(referenceDate), end: endOfMonth(referenceDate) };
-  const financeRecords = getFinanceRecords(records).filter((record) => {
-    const date = getRecordDate(record);
-    return date >= range.start && date <= range.end;
-  });
+  const financeRecords = getFinanceRecordsInRange(records, range);
 
   let income = 0;
   let expense = 0;
@@ -59,6 +71,16 @@ export function buildMonthlyFinanceSummary(
     currency: getCurrency(financeRecords),
     transactionCount: financeRecords.length,
   };
+}
+
+export function buildMonthlyFinanceSummary(
+  records: MemoryRecord[],
+  referenceDate = todayIso(),
+): FinanceSummary {
+  return buildFinanceSummary(records, {
+    start: startOfMonth(referenceDate),
+    end: endOfMonth(referenceDate),
+  });
 }
 
 export function buildSpendingWeekComparison(records: MemoryRecord[]): {

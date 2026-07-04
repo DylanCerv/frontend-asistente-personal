@@ -32,7 +32,7 @@ export function LoginEmailForm({
         label="Email"
         value={email}
         onChangeText={onEmailChange}
-        placeholder="tu@email.com"
+        placeholder="kivo@kivo.com"
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}

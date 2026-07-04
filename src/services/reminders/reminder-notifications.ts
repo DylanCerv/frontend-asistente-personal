@@ -77,7 +77,8 @@ export async function cancelAppReminders(): Promise<void> {
 
 export async function syncReminderNotifications(
   records: MemoryRecord[],
-  enabled: boolean,
+  /** When false, cancels all pending reminders */
+  enabled = true,
 ): Promise<void> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) return;
@@ -110,4 +111,9 @@ export async function syncReminderNotifications(
       }),
     ),
   );
+}
+
+/** Always schedules reminders regardless of user toggle (for overdue/urgent tasks) */
+export async function forceReminderSync(records: MemoryRecord[]): Promise<void> {
+  return syncReminderNotifications(records, true);
 }

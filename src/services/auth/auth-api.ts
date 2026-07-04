@@ -48,3 +48,14 @@ export async function getMeRequest(): Promise<ApiUser> {
   const response = await apiRequest<MeResponse>('/auth/me');
   return response.data.user;
 }
+
+export async function changePasswordRequest(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await apiRequest('/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}

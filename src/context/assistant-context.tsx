@@ -8,25 +8,24 @@ import {
   type ReactNode,
 } from 'react';
 
-import { isAssistantApiConfigured, isMockDataMode, isWhisperConfigured } from '@/config/api';
-import { ASSISTANT_WELCOME_MESSAGE } from '@/constants/branding';
+import { isAssistantApiConfigured } from '@/config/api';
+import { getAssistantWelcomeMessage } from '@/constants/branding';
+import { useUserPreferences } from '@/context/user-preferences-context';
 import { sendMessageToAssistant } from '@/services/assistant-api';
+import { extractPreferredNameRequest } from '@/utils/preferred-name';
 
 import { processVoiceRecording } from '@/services/audio/process-voice-recording';
-import { runMockAssistant } from '@/services/mock/mock-assistant-engine';
-import { simulateVoiceProcessing } from '@/services/mock/mock-voice-parser';
 import {
-  appendMockMemoryRecords,
+  createUserRecord,
   fetchUserRecords,
   patchUserRecord,
-  type RecordsDataSource,
+  removeUserRecord,
 } from '@/services/records/records-service';
 import { createChatMessage } from '@/services/chat-utils';
 import {
   buildVoiceAssistantReply,
   normalizeVoiceJobResult,
 } from '@/services/voice-result-utils';
-import { transcribeAudio } from '@/services/whisper-service';
 import { getApiErrorMessage } from '@/utils/job-status-message';
 import {
   apiRecordToMemory,
@@ -36,10 +35,9 @@ import {
   memoryRecordToTask,
 } from '@/utils/record-mappers';
 import type { AssistantChatResponse } from '@/types/api';
-import type { ApiRecord } from '@/types/record-api';
+import type { ApiRecord, CreateRecordPayload } from '@/types/record-api';
 import type { CalendarEvent, ChatMessage, DaySummary, ReminderItem, TaskItem } from '@/types/assistant';
 import { useAuth } from '@/context/auth-context';
-import { useSubscription } from '@/context/subscription-context';
 import { todayIso } from '@/utils/date-utils';
 
 type ProcessingStep = 'idle' | 'uploading' | 'transcribing' | 'thinking';
@@ -57,36 +55,33 @@ type AssistantContextValue = {
   processingStep: ProcessingStep;
   isRecordsLoading: boolean;
   recordsError: string | null;
-  isMockMode: boolean;
   refreshRecords: () => Promise<void>;
   sendTextMessage: (text: string) => Promise<void>;
   sendVoiceMessage: (audioUri: string) => Promise<void>;
   toggleTaskComplete: (taskId: string) => void;
+  deleteRecord: (recordId: string) => Promise<void>;
+  createRecord: (payload: CreateRecordPayload) => Promise<void>;
+  patchRecord: (recordId: string, payload: import('@/types/record-api').UpdateRecordPayload) => Promise<void>;
   addWelcomeMessage: () => void;
 };
 
 const AssistantContext = createContext<AssistantContextValue | null>(null);
 
-const WELCOME_MESSAGE = ASSISTANT_WELCOME_MESSAGE;
-
-const DEMO_TRANSCRIPTION =
-  'Recuérdame revisar las tareas urgentes de hoy y gasté 35 dólares en almuerzo.';
+const API_NOT_CONFIGURED_MESSAGE =
+  'No hay conexión con el asistente. Revisa la configuración del servidor e intenta de nuevo.';
 
 export function AssistantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { recordVoiceUsage, recordAiUsage } = useSubscription();
+  const { preferredName, setPreferredName } = useUserPreferences();
   const [apiRecords, setApiRecords] = useState<ApiRecord[]>([]);
-  const [recordsSource, setRecordsSource] = useState<RecordsDataSource>('mock');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle');
   const [hasWelcome, setHasWelcome] = useState(false);
   const [isRecordsLoading, setIsRecordsLoading] = useState(true);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
-  const userName = user?.name ?? 'Usuario';
-  const userId = user?.id ?? 'local-user';
+  const userName = preferredName.trim() || user?.name || 'Usuario';
   const isProcessing = processingStep !== 'idle';
-  const isMockMode = isMockDataMode() || recordsSource === 'mock';
 
   const records = useMemo(() => apiRecords.map(apiRecordToMemory), [apiRecords]);
 
@@ -105,6 +100,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const refreshRecords = useCallback(async () => {
     if (!user) {
       setApiRecords([]);
+      setRecordsError(null);
       setIsRecordsLoading(false);
       return;
     }
@@ -113,16 +109,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setRecordsError(null);
 
     try {
-      const result = await fetchUserRecords(userId);
-      setApiRecords(result.records);
-      setRecordsSource(result.source);
+      const result = await fetchUserRecords();
+      setApiRecords(result);
     } catch (error) {
       setRecordsError(getApiErrorMessage(error));
       setApiRecords([]);
     } finally {
       setIsRecordsLoading(false);
     }
-  }, [user, userId]);
+  }, [user]);
 
   useEffect(() => {
     void refreshRecords();
@@ -154,9 +149,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const addWelcomeMessage = useCallback(() => {
     if (hasWelcome) return;
-    setMessages([createChatMessage('assistant', WELCOME_MESSAGE)]);
+    setMessages([createChatMessage('assistant', getAssistantWelcomeMessage(userName))]);
     setHasWelcome(true);
-  }, [hasWelcome]);
+  }, [hasWelcome, userName]);
 
   const buildChatContext = useCallback(
     () => ({
@@ -177,27 +172,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     [tasks, events, records],
   );
 
-  const applyMockChatResult = useCallback(
-    async (userText: string) => {
-      const result = runMockAssistant(userText, { tasks, events, records });
-      setMessages((prev) => [...prev, createChatMessage('assistant', result.reply)]);
-
-      if (result.newRecords.length > 0) {
-        const updated = await appendMockMemoryRecords(userId, result.newRecords);
-        setApiRecords(updated);
-        setRecordsSource('mock');
-      }
-    },
-    [tasks, events, records, userId],
-  );
-
   const applyAssistantResponse = useCallback(
     async (response: AssistantChatResponse) => {
       setMessages((prev) => [...prev, createChatMessage('assistant', response.reply)]);
-
-      if (response.newTasks?.length || response.newEvents?.length || response.completedTaskIds?.length) {
-        await refreshRecords();
-      }
+      await refreshRecords();
     },
     [refreshRecords],
   );
@@ -213,9 +191,24 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setProcessingStep('thinking');
 
       try {
-        if (isMockDataMode() || !isAssistantApiConfigured()) {
-          await applyMockChatResult(userText);
-          await recordAiUsage();
+        const requestedName = extractPreferredNameRequest(userText);
+        if (requestedName) {
+          await setPreferredName(requestedName);
+          setMessages((prev) => [
+            ...prev,
+            createChatMessage(
+              'assistant',
+              `Perfecto, a partir de ahora te llamaré ${requestedName}. Si quieres cambiarlo después, dímelo o ajústalo en Perfil.`,
+            ),
+          ]);
+          return;
+        }
+
+        if (!isAssistantApiConfigured()) {
+          setMessages((prev) => [
+            ...prev,
+            createChatMessage('assistant', API_NOT_CONFIGURED_MESSAGE),
+          ]);
           return;
         }
 
@@ -226,13 +219,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           context: buildChatContext(),
         });
         await applyAssistantResponse(response);
-        await recordAiUsage();
       } catch (error) {
-        if (isMockDataMode() || recordsSource === 'mock') {
-          await applyMockChatResult(userText);
-        } else {
-          handleAssistantError(error);
-        }
+        handleAssistantError(error);
       } finally {
         setProcessingStep('idle');
       }
@@ -242,10 +230,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       user?.email,
       buildChatContext,
       applyAssistantResponse,
-      applyMockChatResult,
       handleAssistantError,
-      recordAiUsage,
-      recordsSource,
+      setPreferredName,
     ],
   );
 
@@ -258,74 +244,58 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     [isProcessing, runAssistantPipeline],
   );
 
-  const processMockVoice = useCallback(
-    async (audioUri: string) => {
-      setProcessingStep('transcribing');
+  const applyVoiceJobResult = useCallback(
+    async (rawResult: Parameters<typeof normalizeVoiceJobResult>[0], fallbackText?: string) => {
+      const result = normalizeVoiceJobResult(rawResult);
+      const transcription = result.transcription?.trim() || fallbackText?.trim();
 
-      const parsed = await simulateVoiceProcessing(async () => {
-        if (isWhisperConfigured()) {
-          return transcribeAudio(audioUri);
-        }
-        return DEMO_TRANSCRIPTION;
-      });
+      if (transcription) {
+        setMessages((prev) => [...prev, createChatMessage('user', transcription)]);
+      }
 
-      setMessages((prev) => [...prev, createChatMessage('user', parsed.transcription)]);
-      setMessages((prev) => [...prev, createChatMessage('assistant', parsed.summary)]);
+      setMessages((prev) => [
+        ...prev,
+        createChatMessage('assistant', buildVoiceAssistantReply(result)),
+      ]);
 
-      const updated = await appendMockMemoryRecords(userId, parsed.records);
-      setApiRecords(updated);
-      setRecordsSource('mock');
-      await recordVoiceUsage();
+      await refreshRecords();
     },
-    [userId, recordVoiceUsage],
+    [refreshRecords],
   );
 
   const sendVoiceMessage = useCallback(
     async (audioUri: string) => {
       if (isProcessing || !audioUri) return;
 
-      setProcessingStep('uploading');
+      setProcessingStep('transcribing');
 
       try {
-        if (isMockDataMode()) {
-          await processMockVoice(audioUri);
+        if (!isAssistantApiConfigured()) {
+          setMessages((prev) => [
+            ...prev,
+            createChatMessage('assistant', API_NOT_CONFIGURED_MESSAGE),
+          ]);
           return;
         }
 
         const rawResult = await processVoiceRecording(audioUri, {
+          onTranscribing: () => setProcessingStep('transcribing'),
           onUploading: () => setProcessingStep('uploading'),
           onProgress: (_progress, status) => {
             if (status === 'pending' || status === 'processing') {
-              setProcessingStep('transcribing');
+              setProcessingStep('thinking');
             }
           },
         });
 
-        const result = normalizeVoiceJobResult(rawResult);
-        const transcription = result.transcription?.trim();
-
-        if (transcription) {
-          setMessages((prev) => [...prev, createChatMessage('user', transcription)]);
-        }
-
-        setMessages((prev) => [
-          ...prev,
-          createChatMessage('assistant', buildVoiceAssistantReply(result)),
-        ]);
-
-        await recordVoiceUsage();
-        await refreshRecords();
+        await applyVoiceJobResult(rawResult);
       } catch (error) {
-        try {
-          await processMockVoice(audioUri);
-        } catch {
-          handleAssistantError(error);
-        }
+        handleAssistantError(error);
       } finally {
         setProcessingStep('idle');
       }
     },
-    [isProcessing, processMockVoice, handleAssistantError, recordVoiceUsage, refreshRecords],
+    [isProcessing, applyVoiceJobResult, handleAssistantError],
   );
 
   const toggleTaskComplete = useCallback(
@@ -343,22 +313,46 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setApiRecords((prev) =>
         prev.map((item) =>
           item.id === taskId
-            ? {
-                ...item,
-                data: {
-                  ...(item.data ?? {}),
-                  ...patch.data,
-                },
-              }
+            ? { ...item, data: { ...(item.data ?? {}), ...patch.data } }
             : item,
         ),
       );
 
-      void patchUserRecord(userId, taskId, patch, recordsSource).catch(async () => {
+      void patchUserRecord(taskId, patch).catch(async () => {
         await refreshRecords();
       });
     },
-    [apiRecords, recordsSource, userId, refreshRecords],
+    [apiRecords, refreshRecords],
+  );
+
+  const deleteRecord = useCallback(
+    async (recordId: string) => {
+      setApiRecords((prev) => prev.filter((item) => item.id !== recordId));
+      try {
+        await removeUserRecord(recordId);
+      } catch {
+        await refreshRecords();
+      }
+    },
+    [refreshRecords],
+  );
+
+  const createRecord = useCallback(
+    async (payload: CreateRecordPayload) => {
+      const newRecord = await createUserRecord(payload);
+      setApiRecords((prev) => [newRecord, ...prev]);
+    },
+    [],
+  );
+
+  const patchRecord = useCallback(
+    async (recordId: string, payload: import('@/types/record-api').UpdateRecordPayload) => {
+      const updated = await patchUserRecord(recordId, payload);
+      setApiRecords((prev) =>
+        prev.map((item) => (item.id === recordId ? updated : item)),
+      );
+    },
+    [],
   );
 
   const value = useMemo(
@@ -375,11 +369,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       processingStep,
       isRecordsLoading,
       recordsError,
-      isMockMode,
       refreshRecords,
       sendTextMessage,
       sendVoiceMessage,
       toggleTaskComplete,
+      deleteRecord,
+      createRecord,
+      patchRecord,
       addWelcomeMessage,
     }),
     [
@@ -395,11 +391,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       processingStep,
       isRecordsLoading,
       recordsError,
-      isMockMode,
       refreshRecords,
       sendTextMessage,
       sendVoiceMessage,
       toggleTaskComplete,
+      deleteRecord,
+      createRecord,
+      patchRecord,
       addWelcomeMessage,
     ],
   );

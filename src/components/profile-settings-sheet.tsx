@@ -1,8 +1,10 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 import { useState } from 'react';
 import {
-  Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Switch,
@@ -14,7 +16,6 @@ import { ScreenSafeArea } from '@/components/screen-safe-area';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
 import {
-  COURSE_BUNDLE_PRICE_USD,
   FUTURE_FREE_LIMITS,
   PAYMENT_PROVIDER,
   SUBSCRIPTION_PLANS,
@@ -23,6 +24,9 @@ import { useAuth } from '@/context/auth-context';
 import { useSubscription } from '@/context/subscription-context';
 import { useUserPreferences, type AppLanguage } from '@/context/user-preferences-context';
 import { ensureNotificationPermissions } from '@/services/reminders/reminder-notifications';
+import { uploadAvatar } from '@/services/profiles/avatar-upload';
+import { changePasswordRequest } from '@/services/auth/auth-api';
+import { showAppAlert } from '@/services/app-dialog';
 
 export type ProfileSheetType =
   | 'personal'
@@ -73,65 +77,180 @@ const titles: Record<Exclude<ProfileSheetType, null>, string> = {
 };
 
 function PersonalDataForm({ onClose }: { onClose: () => void }) {
-  const { user, updateDisplayName } = useAuth();
+  const { user, updateProfile, updateAvatar } = useAuth();
+  const { preferredName, setPreferredName } = useUserPreferences();
   const [name, setName] = useState(user?.name ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [phone, setPhone] = useState('');
+  const [assistantName, setAssistantName] = useState(preferredName || user?.name || '');
+  const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatarUrl ?? null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  function handleSave() {
-    if (name.trim()) {
-      updateDisplayName(name.trim());
+  async function pickAvatar() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showAppAlert('Permiso requerido', 'Necesitamos acceso a tu galería para cambiar la foto.');
+      return;
     }
-    Alert.alert('Guardado', 'Tus datos personales se actualizaron.');
-    onClose();
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setAvatarUri(result.assets[0].uri);
+    }
   }
+
+  async function handleSave() {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    setIsSaving(true);
+    try {
+      await updateProfile({ fullName: trimmedName });
+      await setPreferredName(assistantName.trim() || trimmedName);
+
+      // Upload avatar only if it's a new local file (not a remote URL)
+      if (avatarUri && !avatarUri.startsWith('http') && user?.id) {
+        const publicUrl = await uploadAvatar(user.id, avatarUri);
+        updateAvatar(publicUrl);
+      }
+
+      showAppAlert('Guardado', 'Tus datos personales se actualizaron.');
+      onClose();
+    } catch (error) {
+      showAppAlert(
+        'Error',
+        error instanceof Error ? error.message : 'No se pudieron guardar los cambios.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const initial = user?.name?.charAt(0)?.toUpperCase() ?? 'A';
 
   return (
     <View className="gap-4">
+      <Pressable
+        accessibilityRole="button"
+        onPress={pickAvatar}
+        className="self-center items-center gap-2">
+        <View className="h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-surface-soft bg-brand dark:border-surface-soft-dark dark:bg-brand-dark">
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={{ width: 96, height: 96 }} contentFit="cover" />
+          ) : (
+            <Text className="text-4xl font-bold text-white">{initial}</Text>
+          )}
+        </View>
+        <View className="flex-row items-center gap-1">
+          <Ionicons name="camera-outline" size={14} color="#7C3AED" />
+          <Text className="text-xs font-semibold text-brand dark:text-brand-dark">
+            Cambiar foto
+          </Text>
+        </View>
+      </Pressable>
+
       <Input label="Nombre" value={name} onChangeText={setName} autoCapitalize="words" />
       <Input
-        label="Correo"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
+        label="¿Cómo quieres que te llame Kivo?"
+        value={assistantName}
+        onChangeText={setAssistantName}
+        placeholder="Ej. Dylan"
+        autoCapitalize="words"
       />
-      <Input
-        label="Teléfono (opcional)"
-        value={phone}
-        onChangeText={setPhone}
-        keyboardType="phone-pad"
-        placeholder="+593 99 000 0000"
-      />
-      <Button label="Guardar cambios" onPress={handleSave} />
+      <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+        Kivo usará este nombre en el chat y en tus reportes.
+      </Text>
+      <View className="rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
+        <Text className="text-xs font-semibold uppercase text-subtle dark:text-subtle-dark">
+          Correo
+        </Text>
+        <Text className="mt-1 text-sm text-foreground dark:text-foreground-dark">
+          {user?.email ?? '—'}
+        </Text>
+        <Text className="mt-1 text-xs text-subtle dark:text-subtle-dark">
+          El correo no se puede cambiar desde la app.
+        </Text>
+      </View>
+      <Button label={isSaving ? 'Guardando...' : 'Guardar cambios'} onPress={handleSave} />
     </View>
   );
 }
 
 function SecuritySettings() {
   const { biometricLock, setBiometricLock } = useUserPreferences();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      showAppAlert('Campos requeridos', 'Completa todos los campos.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showAppAlert('Error', 'La nueva contraseña y la confirmación no coinciden.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      showAppAlert('Error', 'La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await changePasswordRequest(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showAppAlert('Listo', 'Tu contraseña se actualizó correctamente.');
+    } catch (error) {
+      showAppAlert('Error', error instanceof Error ? error.message : 'No se pudo cambiar la contraseña.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   return (
     <View className="gap-4">
       <SettingToggle
         label="Bloqueo biométrico"
-        description="Usa huella o Face ID para abrir la app"
+        description="Usa huella o Face ID para abrir la app (solo este dispositivo)"
         value={biometricLock}
         onValueChange={setBiometricLock}
       />
-      <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
-        <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+
+      <View className="gap-3 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
+        <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
           Cambiar contraseña
         </Text>
-        <Text className="mt-1 text-xs text-subtle dark:text-subtle-dark">
-          Disponible cuando conectes tu cuenta al backend.
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => Alert.alert('Próximamente', 'Esta opción estará disponible con el backend.')}
-          className="mt-3 self-start rounded-full bg-surface-soft px-4 py-2 dark:bg-surface-soft-dark">
-          <Text className="text-sm font-semibold text-brand dark:text-brand-dark">Configurar</Text>
-        </Pressable>
+        <Input
+          label="Contraseña actual"
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+        <Input
+          label="Nueva contraseña"
+          value={newPassword}
+          onChangeText={setNewPassword}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+        <Input
+          label="Repetir nueva contraseña"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+        <Button
+          label={isSaving ? 'Actualizando...' : 'Actualizar contraseña'}
+          onPress={handleChangePassword}
+        />
       </View>
     </View>
   );
@@ -140,24 +259,18 @@ function SecuritySettings() {
 function NotificationSettings() {
   const {
     pushNotifications,
-    emailNotifications,
     reminderNotifications,
     setPushNotifications,
-    setEmailNotifications,
     setReminderNotifications,
   } = useUserPreferences();
 
   async function handlePushChange(value: boolean) {
-    if (value) {
-      await ensureNotificationPermissions();
-    }
+    if (value) await ensureNotificationPermissions();
     await setPushNotifications(value);
   }
 
   async function handleReminderChange(value: boolean) {
-    if (value) {
-      await ensureNotificationPermissions();
-    }
+    if (value) await ensureNotificationPermissions();
     await setReminderNotifications(value);
   }
 
@@ -165,22 +278,22 @@ function NotificationSettings() {
     <View className="gap-3">
       <SettingToggle
         label="Notificaciones push"
-        description="Alertas en tu teléfono"
+        description="Alertas generales en tu teléfono"
         value={pushNotifications}
         onValueChange={handlePushChange}
       />
       <SettingToggle
-        label="Notificaciones por correo"
-        description="Resúmenes y recordatorios por email"
-        value={emailNotifications}
-        onValueChange={setEmailNotifications}
-      />
-      <SettingToggle
         label="Recordatorios inteligentes"
-        description="7d, 3d, mañana, hoy y 1h antes según prioridad"
+        description="Kivo te avisa 7d, 3d, mañana, hoy y 1h antes del vencimiento de cada tarea"
         value={reminderNotifications}
         onValueChange={handleReminderChange}
       />
+      <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
+        <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+          Los recordatorios se programan localmente en tu dispositivo. Asegúrate de que las
+          notificaciones de Kivo estén habilitadas en la configuración del sistema.
+        </Text>
+      </View>
     </View>
   );
 }
@@ -218,34 +331,16 @@ function LanguageSettings() {
 }
 
 function SubscriptionSettings() {
-  const {
-    plan,
-    planId,
-    voiceUsageThisMonth,
-    aiUsageThisMonth,
-    isBetaUnlimited,
-    upgradeToPro,
-    purchaseCourseBundle,
-  } = useSubscription();
+  const { plan, planId, isBetaUnlimited, upgradeToPro } = useSubscription();
+  const voiceUsageThisMonth = 0;
+  const aiUsageThisMonth = 0;
 
   async function handleUpgrade() {
     try {
       await upgradeToPro();
-      Alert.alert('Pro activado', 'Tu plan Pro está activo. ¡Gracias!');
+      showAppAlert('Pro activado', 'Tu plan Pro está activo. ¡Gracias!');
     } catch (error) {
-      Alert.alert('Pago', error instanceof Error ? error.message : 'No se pudo procesar el pago.');
-    }
-  }
-
-  async function handleCourseBundle() {
-    try {
-      await purchaseCourseBundle();
-      Alert.alert(
-        'Paquete activado',
-        `Plan Pro activado con paquete de cursos ($${COURSE_BUNDLE_PRICE_USD} USD).`,
-      );
-    } catch (error) {
-      Alert.alert('Pago', error instanceof Error ? error.message : 'No se pudo procesar el pago.');
+      showAppAlert('Pago', error instanceof Error ? error.message : 'No se pudo procesar el pago.');
     }
   }
 
@@ -305,13 +400,6 @@ function SubscriptionSettings() {
       {planId === 'free' ? (
         <Button label="Actualizar a Pro — $4.99/mes" onPress={handleUpgrade} />
       ) : null}
-
-      <Button
-        label={`Paquete de cursos — $${COURSE_BUNDLE_PRICE_USD} USD`}
-        variant="secondary"
-        onPress={handleCourseBundle}
-        className="border border-border dark:border-border-dark"
-      />
 
       <View className="gap-2 rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
         <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
@@ -373,3 +461,4 @@ function UsageRow({
     </View>
   );
 }
+

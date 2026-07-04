@@ -30,6 +30,7 @@ export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
   const data = record.data ?? {};
   const status = readString(data, 'status');
   const category = readString(data, 'category');
+  const location = readString(data, 'location');
 
   return {
     id: record.id,
@@ -42,6 +43,7 @@ export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
     dueAtIso: record.date ?? undefined,
     dueLabel: record.date ? relativeDayLabel(toScheduledAt(record.date)) : undefined,
     category,
+    location,
     client: record.client ?? undefined,
     project: record.project ?? undefined,
     amount: record.amount ?? undefined,
@@ -61,6 +63,7 @@ export function memoryRecordToTask(record: MemoryRecord): TaskItem | null {
     title: record.title,
     description: record.description,
     dueLabel: record.dueLabel,
+    dueAtIso: record.dueAtIso,
     scheduledAt: record.scheduledAt ?? todayIso(),
     completedAt: record.completedAt,
     createdAt: record.createdAt,
@@ -82,8 +85,10 @@ export function memoryRecordToEvent(record: MemoryRecord): CalendarEvent | null 
   return {
     id: record.id,
     title: record.title,
+    description: record.description,
     date: scheduledAt,
     scheduledAt,
+    dueAtIso: record.dueAtIso,
     time: record.time || 'Sin hora',
     type: eventType,
     location: record.location,

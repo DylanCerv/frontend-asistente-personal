@@ -58,12 +58,17 @@ export function RegisterEmailForm({
         onSubmitEditing={() => emailRef.current?.focus()}
       />
 
+      <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+        Tu asistente personal te llamará por este nombre. Puedes cambiarlo después en Perfil o
+        escribiéndole en el chat.
+      </Text>
+
       <Input
         ref={emailRef}
         label="Email"
         value={email}
         onChangeText={onEmailChange}
-        placeholder="tu@email.com"
+        placeholder="kivo@kivo.com"
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}

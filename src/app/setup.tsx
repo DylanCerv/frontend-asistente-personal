@@ -15,5 +15,5 @@ export default function SetupRedirect() {
     return <Redirect href="/onboarding" />;
   }
 
-  return <Redirect href="/" />;
+  return <Redirect href="/(main)" />;
 }

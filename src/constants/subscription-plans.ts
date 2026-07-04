@@ -10,7 +10,6 @@ export type SubscriptionPlan = {
   aiMessagesPerMonth: number | null;
   pdfReports: boolean;
   prioritySupport: boolean;
-  courseBundles: boolean;
   features: string[];
 };
 
@@ -25,7 +24,6 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     aiMessagesPerMonth: null,
     pdfReports: true,
     prioritySupport: false,
-    courseBundles: false,
     features: [
       'Captura por voz ilimitada (beta)',
       'Chat con IA ilimitado (beta)',
@@ -38,17 +36,15 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     name: 'Pro',
     priceLabel: '$4.99/mes',
     priceMonthlyUsd: 4.99,
-    description: 'Para uso intensivo y paquetes de cursos.',
+    description: 'Acceso completo, reportes avanzados y soporte prioritario.',
     voiceMessagesPerMonth: null,
     aiMessagesPerMonth: null,
     pdfReports: true,
     prioritySupport: true,
-    courseBundles: true,
     features: [
       'Todo lo del plan Gratis',
       'Voz e IA sin restricciones',
-      'Reportes avanzados con recomendaciones',
-      'Paquetes de cursos incluidos',
+      'Reportes avanzados con recomendaciones IA',
       'Soporte prioritario',
     ],
   },
@@ -66,5 +62,3 @@ export const PAYMENT_PROVIDER = {
   methods: ['Tarjetas débito/crédito', 'Transferencia', 'Efectivo (Red Activa)'],
   note: 'Pagos procesados en USD. Compatible con bancos ecuatorianos.',
 } as const;
-
-export const COURSE_BUNDLE_PRICE_USD = 9.99;

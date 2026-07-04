@@ -29,10 +29,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#7C3AED",
+          "backgroundColor": "#160A2A",
           "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
+            "image": "./assets/images/kivo-logo.jpeg",
+            "imageWidth": 96
           }
         }
       ],

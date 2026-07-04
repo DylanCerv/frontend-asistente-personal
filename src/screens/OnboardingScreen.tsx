@@ -1,10 +1,12 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRef, useState } from 'react';
-import { Alert, Dimensions, FlatList, Pressable, Text, View } from 'react-native';
+import { Dimensions, FlatList, Pressable, Text, View } from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
+import { KivoLogo } from '@/components/kivo-logo';
 import { Button } from '@/components/ui/button';
+import { showAppAlert } from '@/services/app-dialog';
 
 const { width } = Dimensions.get('window');
 
@@ -56,7 +58,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
       setMicGranted(true);
       return;
     }
-    Alert.alert('Permiso requerido', 'El micrófono es esencial para usar Kivo por voz.');
+    showAppAlert('Permiso requerido', 'El micrófono es esencial para usar Kivo por voz.');
   }
 
   function handleSlideNext() {
@@ -72,7 +74,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
 
   async function handleFinish() {
     if (!micGranted) {
-      Alert.alert('Micrófono requerido', 'Activa el permiso de micrófono para continuar.');
+      showAppAlert('Micrófono requerido', 'Activa el permiso de micrófono para continuar.');
       return;
     }
 
@@ -90,8 +92,8 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
         <View className="flex-1 justify-center px-6">
           <View className="w-full max-w-md gap-8 self-center">
             <View className="items-center gap-3">
-              <View className="h-16 w-16 items-center justify-center rounded-3xl bg-muted dark:bg-muted-dark">
-                <Ionicons name="shield-checkmark-outline" size={32} color="#7C3AED" />
+              <View className="rounded-[26px] bg-surface p-2 shadow-sm dark:bg-surface-dark">
+                <KivoLogo size={64} />
               </View>
               <Text className="text-center text-[26px] font-bold text-foreground dark:text-foreground-dark">
                 {userName ? `¡Hola, ${userName}!` : 'Último paso'}
@@ -175,8 +177,8 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
     <ScreenSafeArea>
       <View className="flex-1">
         <View className="items-center gap-2 px-6 pt-8">
-          <View className="h-14 w-14 items-center justify-center rounded-2xl bg-muted dark:bg-muted-dark">
-            <Ionicons name="sparkles-outline" size={28} color="#7C3AED" />
+          <View className="rounded-[22px] bg-surface p-1.5 shadow-sm dark:bg-surface-dark">
+            <KivoLogo size={56} />
           </View>
           <Text className="text-sm font-medium text-brand dark:text-brand-dark">
             Habla. Nosotros organizamos.

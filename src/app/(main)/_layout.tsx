@@ -20,13 +20,14 @@ function MainShell() {
           animation: 'slide_from_right',
         }}>
         <Stack.Screen name="index" />
-        <Stack.Screen name="memory" />
         <Stack.Screen name="agenda" />
         <Stack.Screen name="finances" />
+        <Stack.Screen name="report" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="capture" />
         <Stack.Screen name="chat" />
         <Stack.Screen name="tasks" />
+        <Stack.Screen name="memory" />
       </Stack>
       <ReminderSync />
       <FloatingMicButton />

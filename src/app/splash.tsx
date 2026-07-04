@@ -32,5 +32,5 @@ export default function SplashRoute() {
     return <Redirect href="/onboarding" />;
   }
 
-  return <Redirect href="/" />;
+  return <Redirect href="/(main)" />;
 }

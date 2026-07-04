@@ -6,6 +6,7 @@ export type TaskItem = {
   description?: string;
   dueLabel?: string;
   dueDate?: string;
+  dueAtIso?: string;
   scheduledAt: string;
   completedAt?: string;
   createdAt?: string;
@@ -24,9 +25,11 @@ export type CalendarEvent = {
   title: string;
   date: string;
   scheduledAt: string;
+  dueAtIso?: string;
   time: string;
   type: 'meeting' | 'reminder' | 'event';
   location?: string;
+  description?: string;
 };
 
 export type ReminderItem = {

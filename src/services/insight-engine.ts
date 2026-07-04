@@ -18,6 +18,9 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
   const dueToday = getDueTodayRecords(records, today);
 
   if (dueToday.length > 0 && insights.length < 4) {
+    const focusRecord = dueToday[0];
+    const isEvent = focusRecord?.type === 'meeting' || focusRecord?.type === 'reminder';
+
     insights.push({
       id: 'due-today',
       type: 'due_today',
@@ -25,8 +28,10 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
         dueToday.length === 1
           ? 'Tienes 1 cosa pendiente para hoy.'
           : `Tienes ${dueToday.length} cosas pendientes para hoy.`,
-      subtitle: dueToday[0]?.title,
+      subtitle: focusRecord?.title,
       action: 'agenda',
+      targetId: focusRecord?.id,
+      targetKind: isEvent ? 'event' : 'task',
     });
   }
 
@@ -38,6 +43,7 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
   );
 
   if (urgentToday.length > 0) {
+    const focusTask = urgentToday[0];
     const label =
       urgentToday.length === 1
         ? 'Tienes 1 tarea urgente hoy.'
@@ -46,8 +52,10 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
       id: 'urgent-tasks',
       type: 'urgent_tasks',
       title: label,
-      subtitle: urgentToday[0]?.title,
+      subtitle: focusTask?.title,
       action: 'agenda',
+      targetId: focusTask?.id,
+      targetKind: 'task',
     });
   }
 
@@ -63,6 +71,8 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
       title: `Tienes una reunión a las ${nextMeeting.time}.`,
       subtitle: nextMeeting.title,
       action: 'agenda',
+      targetId: nextMeeting.id,
+      targetKind: 'event',
     });
   }
 
@@ -85,7 +95,9 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
       type: 'reminder',
       title: topReminder.title,
       subtitle: topReminder.timeLabel,
-      action: 'memory',
+      action: 'agenda',
+      targetId: topReminder.id,
+      targetKind: 'task',
     });
   }
 
@@ -96,7 +108,7 @@ export function buildInsights({ tasks, events, reminders, records }: BuildInsigh
       type: 'positive',
       title: `Completaste ${completedThisWeek} tareas recientemente.`,
       subtitle: 'Buen ritmo, sigue así.',
-      action: 'memory',
+      action: 'agenda',
     });
   }
 

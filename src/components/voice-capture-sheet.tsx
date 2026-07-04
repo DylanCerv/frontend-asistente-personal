@@ -1,52 +1,36 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import {
-  AudioQuality,
-  IOSOutputFormat,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
   useAudioRecorder,
   useAudioRecorderState,
-  type RecordingOptions,
 } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
 import { useBottomInset } from '@/components/screen-safe-area';
 
+import { LIGHT_VOICE_RECORDING_OPTIONS } from '@/constants/voice-recording';
 import { useAssistant } from '@/context/assistant-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import { useVoiceCapture } from '@/context/voice-capture-context';
 
-const VOICE_RECORDING_OPTIONS: RecordingOptions = {
-  extension: '.m4a',
-  sampleRate: 32000,
-  numberOfChannels: 1,
-  bitRate: 48000,
-  isMeteringEnabled: true,
-  android: {
-    extension: '.m4a',
-    outputFormat: 'mpeg4',
-    audioEncoder: 'aac',
-    audioSource: 'voice_recognition',
-  },
-  ios: {
-    extension: '.m4a',
-    outputFormat: IOSOutputFormat.MPEG4AAC,
-    audioQuality: AudioQuality.MEDIUM,
-  },
-  web: {
-    mimeType: 'audio/webm',
-    bitsPerSecond: 64000,
-  },
-};
-
 type CapturePhase = 'idle' | 'recording' | 'review' | 'processing';
+
+const SEEK_SECONDS = 5;
 
 function formatDuration(durationMillis: number) {
   const totalSeconds = Math.max(0, Math.floor(durationMillis / 1000));
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
   const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function formatSeconds(totalSeconds: number) {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = String(Math.floor(safe / 60)).padStart(2, '0');
+  const seconds = String(safe % 60).padStart(2, '0');
   return `${minutes}:${seconds}`;
 }
 
@@ -56,49 +40,66 @@ export function VoiceCaptureSheet() {
   const { sendVoiceMessage } = useAssistant();
   const { autoSendVoice } = useUserPreferences();
 
-  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  const audioRecorder = useAudioRecorder(LIGHT_VOICE_RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(audioRecorder, 250);
 
   const [phase, setPhase] = useState<CapturePhase>('idle');
   const [savedUri, setSavedUri] = useState<string | null>(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingDurationMs, setRecordingDurationMs] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const player = useAudioPlayer(savedUri);
   const playerStatus = useAudioPlayerStatus(player);
+
+  const recordingStartedAt = useRef<number | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasAutoStarted = useRef(false);
 
-  const isRecording = recorderState.isRecording;
+  const isRecording = phase === 'recording' || recorderState.isRecording;
+
+  const playbackDurationSec = Math.max(
+    playerStatus.duration || 0,
+    recordingDurationMs / 1000,
+  );
+  const playbackCurrentSec = playerStatus.currentTime || 0;
 
   useEffect(() => {
     if (!isOpen) {
       hasAutoStarted.current = false;
+      stopRecordingTimer();
       setPhase('idle');
       setSavedUri(null);
-      setRecordingDuration(0);
-      if (playerStatus.playing) {
-        player.pause();
-      }
+      setError(null);
+      setRecordingDurationMs(0);
+      if (playerStatus.playing) player.pause();
       return;
     }
 
     if (autoStart && !hasAutoStarted.current && phase === 'idle') {
       hasAutoStarted.current = true;
-      startRecording();
+      void startRecording();
     }
   }, [isOpen, autoStart, phase]);
 
   useEffect(() => {
-    if (!isRecording && recorderState.url && phase === 'recording') {
+    if (!recorderState.isRecording && recorderState.url && phase === 'recording') {
+      const durationFromRecorder = recorderState.durationMillis || 0;
+      const durationFromTimer = recordingStartedAt.current
+        ? Date.now() - recordingStartedAt.current
+        : 0;
+      const finalDuration = Math.max(durationFromRecorder, durationFromTimer);
+
+      stopRecordingTimer();
+      setRecordingDurationMs(finalDuration);
       setSavedUri(recorderState.url);
-      setRecordingDuration(recorderState.durationMillis);
 
       if (autoSendVoice && recorderState.url) {
-        finishAndSend(recorderState.url);
+        void finishAndSendAudio(recorderState.url);
       } else {
         setPhase('review');
       }
     }
-  }, [isRecording, recorderState.url, phase, autoSendVoice]);
+  }, [recorderState.isRecording, recorderState.url, phase, autoSendVoice]);
 
   useEffect(() => {
     if (savedUri) {
@@ -106,15 +107,42 @@ export function VoiceCaptureSheet() {
     }
   }, [savedUri, player]);
 
-  async function startRecording() {
-    const permission = await requestRecordingPermissionsAsync();
-    if (!permission.granted) return;
+  useEffect(() => {
+    return () => {
+      stopRecordingTimer();
+    };
+  }, []);
 
-    setSavedUri(null);
-    setRecordingDuration(0);
-    if (playerStatus.playing) {
-      player.pause();
+  function stopRecordingTimer() {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
     }
+    recordingStartedAt.current = null;
+  }
+
+  function startRecordingTimer() {
+    stopRecordingTimer();
+    const startedAt = Date.now();
+    recordingStartedAt.current = startedAt;
+    setRecordingDurationMs(0);
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingDurationMs(Date.now() - startedAt);
+    }, 200);
+  }
+
+  async function startRecording() {
+    setError(null);
+    setSavedUri(null);
+    setRecordingDurationMs(0);
+
+    const permission = await requestRecordingPermissionsAsync();
+    if (!permission.granted) {
+      setError('Se necesita permiso de micrófono para grabar.');
+      return;
+    }
+
+    if (playerStatus.playing) player.pause();
 
     await setAudioModeAsync({
       allowsRecording: true,
@@ -122,55 +150,43 @@ export function VoiceCaptureSheet() {
       interruptionMode: 'duckOthers',
     });
 
-    await audioRecorder.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
+    await audioRecorder.prepareToRecordAsync(LIGHT_VOICE_RECORDING_OPTIONS);
     audioRecorder.record();
+    startRecordingTimer();
     setPhase('recording');
   }
 
-  async function finishAndSend(audioUri: string) {
+  async function finishAndSendAudio(audioUri: string) {
     setPhase('processing');
     closeCapture();
     await sendVoiceMessage(audioUri);
     setPhase('idle');
+    setSavedUri(null);
+    setRecordingDurationMs(0);
   }
 
   async function handleStopRecording() {
-    if (!isRecording) return;
+    if (!recorderState.isRecording) return;
     await audioRecorder.stop();
   }
 
   async function handleSendFromReview() {
     if (!savedUri) return;
-
-    if (playerStatus.playing) {
-      player.pause();
-    }
-    await finishAndSend(savedUri);
+    if (playerStatus.playing) player.pause();
+    await finishAndSendAudio(savedUri);
   }
 
   async function handleRecordAgain() {
-    if (playerStatus.playing) {
-      player.pause();
-    }
+    if (playerStatus.playing) player.pause();
     setSavedUri(null);
+    setRecordingDurationMs(0);
     await startRecording();
-  }
-
-  function handlePlayPress() {
-    if (!savedUri) return;
-
-    if (playerStatus.playing) {
-      player.pause();
-      return;
-    }
-
-    player.play();
   }
 
   async function handleMicPress() {
     if (phase === 'processing') return;
 
-    if (isRecording) {
+    if (recorderState.isRecording) {
       await handleStopRecording();
       return;
     }
@@ -183,29 +199,51 @@ export function VoiceCaptureSheet() {
     await startRecording();
   }
 
-  function handleClose() {
-    if (isRecording) {
-      audioRecorder.stop().catch(() => {});
-    }
+  function handlePlayPress() {
+    if (!savedUri) return;
     if (playerStatus.playing) {
       player.pause();
+      return;
     }
+    void player.seekTo(playbackCurrentSec >= playbackDurationSec - 0.25 ? 0 : playbackCurrentSec);
+    player.play();
+  }
+
+  async function handleSeekBy(deltaSeconds: number) {
+    if (!savedUri || playbackDurationSec <= 0) return;
+
+    const next = Math.min(
+      playbackDurationSec,
+      Math.max(0, playbackCurrentSec + deltaSeconds),
+    );
+    await player.seekTo(next);
+  }
+
+  function handleClose() {
+    stopRecordingTimer();
+    if (recorderState.isRecording) {
+      audioRecorder.stop().catch(() => {});
+    }
+    if (playerStatus.playing) player.pause();
     closeCapture();
   }
 
   const title =
     phase === 'processing'
-      ? 'Procesando...'
+      ? 'Un momento...'
       : isRecording
-        ? 'Escuchando...'
+        ? 'Grabando...'
         : phase === 'review'
-          ? 'Revisa tu audio'
+          ? 'Tu nota de voz'
           : '¿Qué necesitas recordar?';
 
   const subtitle =
     phase === 'review'
-      ? 'Escucha tu grabación y envíala cuando estés listo.'
-      : 'Habla naturalmente. La IA organiza todo por ti.';
+      ? 'Escúchala y envíala cuando quieras.'
+      : 'Habla con naturalidad. Kivo se encarga del resto.';
+
+  const progressRatio =
+    playbackDurationSec > 0 ? Math.min(1, playbackCurrentSec / playbackDurationSec) : 0;
 
   return (
     <Modal visible={isOpen} animationType="slide" transparent onRequestClose={handleClose}>
@@ -214,7 +252,7 @@ export function VoiceCaptureSheet() {
           onPress={(e) => e.stopPropagation()}
           className="gap-5 rounded-t-[32px] border border-border bg-surface px-6 pt-6 dark:border-border-dark dark:bg-surface-dark"
           style={{ paddingBottom: bottomInset }}>
-          <View className="self-center h-1 w-10 rounded-full bg-border dark:bg-border-dark" />
+          <View className="h-1 w-10 self-center rounded-full bg-border dark:bg-border-dark" />
 
           <View className="items-center gap-2">
             <Text className="text-xl font-bold text-foreground dark:text-foreground-dark">
@@ -223,57 +261,106 @@ export function VoiceCaptureSheet() {
             <Text className="text-center text-sm text-subtle dark:text-subtle-dark">{subtitle}</Text>
           </View>
 
+          {error ? (
+            <View className="rounded-2xl border border-danger/30 bg-danger/5 px-4 py-3">
+              <Text className="text-center text-sm text-danger dark:text-danger-dark">{error}</Text>
+            </View>
+          ) : null}
+
           {phase === 'review' && savedUri ? (
-            <View className="gap-4 rounded-[24px] border border-border bg-canvas p-4 dark:border-border-dark dark:bg-canvas-dark">
+            <View className="gap-4 rounded-[28px] border border-border bg-canvas p-4 dark:border-border-dark dark:bg-canvas-dark">
               <View className="flex-row items-center gap-3">
-                <View className="h-11 w-11 items-center justify-center rounded-2xl bg-muted dark:bg-muted-dark">
-                  <Ionicons name="musical-notes-outline" size={22} color="#7C3AED" />
+                <View className="h-12 w-12 items-center justify-center rounded-2xl bg-surface-soft dark:bg-surface-soft-dark">
+                  <Ionicons name="mic-outline" size={23} color="#7C3AED" />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
-                    Audio listo
+                <View className="flex-1 gap-0.5">
+                  <Text className="text-base font-bold text-foreground dark:text-foreground-dark">
+                    Nota lista
                   </Text>
                   <Text className="text-xs text-subtle dark:text-subtle-dark">
-                    Duración {formatDuration(recordingDuration)}
+                    Escúchala antes de enviarla
+                  </Text>
+                </View>
+                <View className="rounded-full bg-surface px-3 py-1 dark:bg-surface-dark">
+                  <Text className="text-xs font-semibold text-brand dark:text-brand-dark">
+                    {formatDuration(recordingDurationMs)}
                   </Text>
                 </View>
               </View>
 
-              <View className="flex-row items-center justify-between gap-2">
+              <View className="gap-2 rounded-2xl bg-surface px-4 py-3 dark:bg-surface-dark">
+                <View className="h-2 overflow-hidden rounded-full bg-muted dark:bg-muted-dark">
+                  <View
+                    className="h-full rounded-full bg-brand dark:bg-brand-dark"
+                    style={{ width: `${progressRatio * 100}%` }}
+                  />
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-xs text-subtle dark:text-subtle-dark">
+                    {formatSeconds(playbackCurrentSec)}
+                  </Text>
+                  <Text className="text-xs text-subtle dark:text-subtle-dark">
+                    {formatSeconds(playbackDurationSec)}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-center justify-center gap-3">
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={playerStatus.playing ? 'Pausar audio' : 'Escuchar audio'}
+                  accessibilityLabel="Atrasar 5 segundos"
+                  onPress={() => void handleSeekBy(-SEEK_SECONDS)}
+                  className="h-12 w-12 items-center justify-center rounded-full border border-border bg-surface active:opacity-80 dark:border-border-dark dark:bg-surface-dark">
+                  <Ionicons name="play-back-outline" size={22} color="#7C3AED" />
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={playerStatus.playing ? 'Pausar' : 'Reproducir'}
                   onPress={handlePlayPress}
-                  className="min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-surface-soft active:opacity-80 dark:bg-surface-soft-dark">
+                  className="h-16 w-16 items-center justify-center rounded-full bg-brand shadow-sm active:opacity-85 dark:bg-brand-dark">
                   <Ionicons
                     name={playerStatus.playing ? 'pause-outline' : 'play-outline'}
-                    size={22}
-                    color="#7C3AED"
+                    size={30}
+                    color="#FFFFFF"
                   />
-                  <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
-                    {playerStatus.playing ? 'Pausar' : 'Escuchar'}
-                  </Text>
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Enviar audio"
+                  accessibilityLabel="Adelantar 5 segundos"
+                  onPress={() => void handleSeekBy(SEEK_SECONDS)}
+                  className="h-12 w-12 items-center justify-center rounded-full border border-border bg-surface active:opacity-80 dark:border-border-dark dark:bg-surface-dark">
+                  <Ionicons name="play-forward-outline" size={22} color="#7C3AED" />
+                </Pressable>
+              </View>
+
+              <View className="flex-row items-center gap-3 pt-1">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Enviar"
                   onPress={handleSendFromReview}
-                  className="h-[52px] w-[52px] items-center justify-center rounded-2xl bg-brand active:opacity-85 dark:bg-brand-dark">
+                  className="min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-brand active:opacity-85 dark:bg-brand-dark">
                   <Ionicons name="paper-plane-outline" size={22} color="#FFFFFF" />
+                  <Text className="text-sm font-semibold text-white">Enviar</Text>
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Grabar otro audio"
+                  accessibilityLabel="Grabar de nuevo"
                   onPress={handleRecordAgain}
-                  className="h-[52px] w-[52px] items-center justify-center rounded-2xl border border-border bg-surface active:opacity-80 dark:border-border-dark dark:bg-surface-dark">
+                  className="min-h-[52px] flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 active:opacity-80 dark:border-border-dark dark:bg-surface-dark">
                   <Ionicons name="mic-outline" size={22} color="#7C3AED" />
+                  <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
+                    Repetir
+                  </Text>
                 </Pressable>
               </View>
             </View>
-          ) : (
-            <View className="items-center gap-4 py-4">
+          ) : null}
+
+          {phase !== 'review' ? (
+            <View className="items-center gap-4 py-2">
               {phase === 'processing' ? (
                 <View className="h-24 w-24 items-center justify-center rounded-full bg-muted dark:bg-muted-dark">
                   <ActivityIndicator size="large" color="#7C3AED" />
@@ -285,27 +372,23 @@ export function VoiceCaptureSheet() {
                   className={`h-24 w-24 items-center justify-center rounded-full ${
                     isRecording ? 'bg-danger dark:bg-danger-dark' : 'bg-brand dark:bg-brand-dark'
                   } active:opacity-85`}>
-                  <Ionicons
-                    name={isRecording ? 'stop' : phase === 'review' ? 'mic' : 'mic'}
-                    size={40}
-                    color="#FFFFFF"
-                  />
+                  <Ionicons name={isRecording ? 'stop' : 'mic'} size={40} color="#FFFFFF" />
                 </Pressable>
               )}
 
               {isRecording ? (
                 <Text className="text-lg font-semibold text-brand dark:text-brand-dark">
-                  {formatDuration(recorderState.durationMillis)}
+                  {formatDuration(recordingDurationMs)}
                 </Text>
               ) : null}
             </View>
-          )}
+          ) : null}
 
-          {phase !== 'review' ? (
+          {phase !== 'review' && phase !== 'processing' ? (
             <Text className="text-center text-xs text-subtle dark:text-subtle-dark">
               {autoSendVoice
-                ? 'El audio se enviará automáticamente al detener la grabación.'
-                : 'Podrás escuchar tu audio antes de enviarlo.'}
+                ? 'Se enviará al detener la grabación.'
+                : 'Podrás escucharla antes de enviarla.'}
             </Text>
           ) : null}
         </Pressable>

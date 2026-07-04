@@ -1,6 +1,14 @@
 import { apiRequest } from '@/services/api/api-client';
 import type { RecordType } from '@/types/record';
-import type { ApiRecord, RecordsListResponse, RecordResponse, UpdateRecordPayload } from '@/types/record-api';
+import type {
+  ApiRecord,
+  CreateRecordPayload,
+  RecordChange,
+  RecordHistoryResponse,
+  RecordsListResponse,
+  RecordResponse,
+  UpdateRecordPayload,
+} from '@/types/record-api';
 
 type ListRecordsParams = {
   type?: RecordType;
@@ -21,6 +29,15 @@ export async function listRecords(params: ListRecordsParams = {}): Promise<ApiRe
   return response.data ?? [];
 }
 
+export async function createRecord(payload: CreateRecordPayload): Promise<ApiRecord> {
+  const response = await apiRequest<RecordResponse>('/records', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return response.data;
+}
+
 export async function updateRecord(
   recordId: string,
   payload: UpdateRecordPayload,
@@ -31,4 +48,13 @@ export async function updateRecord(
     body: JSON.stringify(payload),
   });
   return response.data;
+}
+
+export async function deleteRecord(recordId: string): Promise<void> {
+  await apiRequest(`/records/${recordId}`, { method: 'DELETE' });
+}
+
+export async function getRecordHistory(recordId: string): Promise<RecordChange[]> {
+  const response = await apiRequest<RecordHistoryResponse>(`/records/${recordId}/history`);
+  return response.data ?? [];
 }

@@ -11,7 +11,9 @@ import {
   type RecordingOptions,
 } from 'expo-audio';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+
+import { showAppAlert } from '@/services/app-dialog';
 
 const VOICE_RECORDING_OPTIONS: RecordingOptions = {
   extension: '.m4a',
@@ -71,7 +73,7 @@ export function AudioQuickAction() {
     const permission = await requestRecordingPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.');
+      showAppAlert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.');
       return;
     }
 
@@ -98,7 +100,7 @@ export function AudioQuickAction() {
 
       await startRecording();
     } catch {
-      Alert.alert('No se pudo grabar', 'Intenta nuevamente en unos segundos.');
+      showAppAlert('No se pudo grabar', 'Intenta nuevamente en unos segundos.');
     }
   }
 
@@ -111,7 +113,7 @@ export function AudioQuickAction() {
       setSavedUri(null);
       await startRecording();
     } catch {
-      Alert.alert('No se pudo grabar', 'Intenta nuevamente en unos segundos.');
+      showAppAlert('No se pudo grabar', 'Intenta nuevamente en unos segundos.');
     }
   }
 

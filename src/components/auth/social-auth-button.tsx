@@ -27,7 +27,7 @@ export function SocialAuthButton({
   const isApple = provider === 'apple';
 
   const googleContainerClass =
-    'border border-[#DADCE0] bg-white shadow-sm dark:border-border-dark dark:bg-surface-dark';
+    'border border-[#DADCE0] bg-white/95 shadow-sm dark:border-border-dark dark:bg-surface-dark';
   const appleContainerClass = isDark
     ? 'border border-border bg-white dark:border-border-dark'
     : 'bg-black';
@@ -38,7 +38,7 @@ export function SocialAuthButton({
     <Pressable
       accessibilityRole="button"
       disabled={isDisabled}
-      className={`min-h-[54px] flex-row items-center justify-center rounded-2xl px-5 active:opacity-90 ${
+      className={`min-h-[56px] flex-row items-center justify-center rounded-[20px] px-5 active:opacity-90 ${
         isGoogle ? googleContainerClass : appleContainerClass
       } ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
       {...props}>

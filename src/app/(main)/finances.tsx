@@ -1,18 +1,22 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
-import { useMemo } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
+import { DateRangePicker, useDateRangeState } from '@/components/date-range-picker';
 import { ExpandableItemCard, DetailRow } from '@/components/expandable-item-card';
 import { ScreenHeader } from '@/components/screen-header';
 import { useAssistant } from '@/context/assistant-context';
+import { useAuth } from '@/context/auth-context';
+import { useUserPreferences } from '@/context/user-preferences-context';
 import {
-  buildMonthlyFinanceSummary,
+  buildFinanceSummary,
   formatMoney,
-  getFinanceRecords,
+  getFinanceRecordsInRange,
 } from '@/services/finance-analytics';
+import { buildFinanceReportHtml, sharePdfReport } from '@/services/report-export';
 import type { MemoryRecord } from '@/types/record';
-import { formatLongDate, todayIso } from '@/utils/date-utils';
+import { formatLongDate, formatRangeLabel } from '@/utils/date-utils';
 
 function FinanceSummaryCard({
   label,
@@ -95,22 +99,82 @@ function FinanceRecordCard({ record }: { record: MemoryRecord }) {
 }
 
 export default function FinancesScreen() {
-  const { records, isRecordsLoading, recordsError } = useAssistant();
+  const { user } = useAuth();
+  const { preferredName } = useUserPreferences();
+  const { records, isRecordsLoading, recordsError, refreshRecords } = useAssistant();
+  const { preset, range, onChange } = useDateRangeState('month');
+  const [isExporting, setIsExporting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const summary = useMemo(
-    () => buildMonthlyFinanceSummary(records, todayIso()),
-    [records],
+  const summary = useMemo(() => buildFinanceSummary(records, range), [records, range]);
+  const financeRecords = useMemo(
+    () => getFinanceRecordsInRange(records, range),
+    [records, range],
   );
 
-  const financeRecords = useMemo(() => getFinanceRecords(records), [records]);
+  const displayName = preferredName.trim() || user?.name || 'Usuario';
+
+  async function handleDownload() {
+    setIsExporting(true);
+    try {
+      const html = buildFinanceReportHtml({
+        displayName,
+        range,
+        records: financeRecords,
+        income: summary.income,
+        expense: summary.expense,
+        balance: summary.balance,
+        currency: summary.currency,
+      });
+      await sharePdfReport(`Finanzas ${formatRangeLabel(range)}`, html);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    try {
+      await refreshRecords();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   return (
     <ScreenSafeArea>
       <ScreenHeader
         title="Finanzas"
-        subtitle={`Resumen del mes · ${summary.transactionCount} movimientos`}
+        subtitle={`${formatRangeLabel(range)} · ${summary.transactionCount} movimientos`}
       />
-      <ScrollView contentContainerClassName="w-full max-w-3xl gap-5 self-center px-6 pb-36 pt-4">
+      <ScrollView
+        contentContainerClassName="w-full max-w-3xl gap-5 self-center px-6 pb-36 pt-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing || isRecordsLoading}
+            onRefresh={handleRefresh}
+            tintColor="#7C3AED"
+            colors={['#7C3AED']}
+          />
+        }>
+        <DateRangePicker preset={preset} range={range} onChange={onChange} />
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Descargar reporte financiero"
+          onPress={handleDownload}
+          disabled={isExporting}
+          className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-3.5 active:opacity-90 dark:bg-brand-dark">
+          {isExporting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Ionicons name="download-outline" size={18} color="#FFFFFF" />
+          )}
+          <Text className="text-sm font-semibold text-white">
+            {isExporting ? 'Generando PDF...' : 'Descargar reporte PDF'}
+          </Text>
+        </Pressable>
+
         {recordsError ? (
           <View className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
             <Text className="text-sm text-danger dark:text-danger-dark">{recordsError}</Text>
@@ -132,7 +196,7 @@ export default function FinancesScreen() {
 
         <View className="rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
           <Text className="text-xs font-semibold uppercase text-subtle dark:text-subtle-dark">
-            Balance del mes
+            Balance del periodo
           </Text>
           <Text
             className={`mt-1 text-2xl font-bold ${
@@ -156,7 +220,7 @@ export default function FinancesScreen() {
         ) : (
           <View className="gap-3">
             <Text className="text-base font-semibold text-foreground dark:text-foreground-dark">
-              Movimientos recientes
+              Movimientos del periodo
             </Text>
             {financeRecords.map((record) => (
               <FinanceRecordCard key={record.id} record={record} />

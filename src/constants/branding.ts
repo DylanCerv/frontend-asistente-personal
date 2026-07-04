@@ -6,3 +6,9 @@ export const APP_SCHEME = 'kivo';
 
 export const ASSISTANT_WELCOME_MESSAGE =
   'Hola, soy Kivo, tu asistente personal. Puedes preguntarme qué tienes hoy, pedirme recordatorios o simplemente hablarme. ¿En qué te ayudo?';
+
+export function getAssistantWelcomeMessage(preferredName?: string): string {
+  const name = preferredName?.trim();
+  if (!name) return ASSISTANT_WELCOME_MESSAGE;
+  return `Hola ${name}, soy Kivo, tu asistente personal. Puedes preguntarme qué tienes hoy, pedirme recordatorios o simplemente hablarme. ¿En qué te ayudo?`;
+}

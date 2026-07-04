@@ -29,6 +29,19 @@ export type RecordResponse = {
   data: ApiRecord;
 };
 
+export type CreateRecordPayload = {
+  type: RecordType;
+  title?: string | null;
+  description?: string | null;
+  priority?: 'low' | 'medium' | 'high' | null;
+  date?: string | null;
+  client?: string | null;
+  project?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  data?: Record<string, unknown>;
+};
+
 export type UpdateRecordPayload = {
   type?: RecordType;
   title?: string | null;
@@ -40,4 +53,20 @@ export type UpdateRecordPayload = {
   amount?: number | null;
   currency?: string | null;
   data?: Record<string, unknown>;
+  /** Optional note explaining why the record was modified (stored in record_changes) */
+  note?: string | null;
+};
+
+export type RecordChange = {
+  id: string;
+  record_id: string;
+  user_id: string;
+  changed_at: string;
+  change_note: string | null;
+  previous_data: Record<string, unknown>;
+};
+
+export type RecordHistoryResponse = {
+  success: boolean;
+  data: RecordChange[];
 };

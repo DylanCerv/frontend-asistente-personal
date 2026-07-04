@@ -12,7 +12,7 @@ export default function LoginRoute() {
   const [error, setError] = useState<string | null>(null);
 
   if (isAuthenticated) {
-    return <Redirect href={hasCompletedOnboarding ? '/' : '/onboarding'} />;
+    return <Redirect href={hasCompletedOnboarding ? '/(main)' : '/onboarding'} />;
   }
 
   async function handleSignIn(credentials: { email: string; password: string }) {
@@ -20,7 +20,7 @@ export default function LoginRoute() {
       setError(null);
       await signIn(credentials);
       await completeOnboarding();
-      router.replace('/');
+      router.replace('/(main)');
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Credenciales incorrectas');
     }
@@ -31,7 +31,7 @@ export default function LoginRoute() {
       setError(null);
       await signInWithGoogle();
       await completeOnboarding();
-      router.replace('/');
+      router.replace('/(main)');
     } catch (caughtError) {
       setError(
         caughtError instanceof Error ? caughtError.message : 'No se pudo iniciar sesión con Google.',
@@ -44,7 +44,7 @@ export default function LoginRoute() {
       setError(null);
       await signInWithApple();
       await completeOnboarding();
-      router.replace('/');
+      router.replace('/(main)');
     } catch (caughtError) {
       setError(
         caughtError instanceof Error ? caughtError.message : 'No se pudo iniciar sesión con Apple.',

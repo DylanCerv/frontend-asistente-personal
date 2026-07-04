@@ -7,7 +7,9 @@ export type InsightType =
   | 'free_time'
   | 'positive';
 
-export type InsightAction = 'agenda' | 'finances' | 'memory' | 'chat';
+export type InsightAction = 'agenda' | 'finances' | 'chat';
+
+export type InsightTargetKind = 'task' | 'event';
 
 export type InsightItem = {
   id: string;
@@ -15,4 +17,7 @@ export type InsightItem = {
   title: string;
   subtitle?: string;
   action?: InsightAction;
+  /** Opens this specific item instead of the full list. */
+  targetId?: string;
+  targetKind?: InsightTargetKind;
 };

@@ -17,7 +17,7 @@ export default function OnboardingRoute() {
   }
 
   if (hasCompletedOnboarding) {
-    return <Redirect href="/" />;
+    return <Redirect href="/(main)" />;
   }
 
   async function handleComplete({ notificationsEnabled }: { notificationsEnabled: boolean }) {
@@ -27,7 +27,7 @@ export default function OnboardingRoute() {
     await setPushNotifications(notificationsEnabled);
     await setReminderNotifications(notificationsEnabled);
     await completeOnboarding();
-    router.replace('/');
+    router.replace('/(main)');
   }
 
   return <OnboardingScreen userName={user?.name} onComplete={handleComplete} />;

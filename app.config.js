@@ -5,7 +5,6 @@ module.exports = () => ({
     ...appJson.expo,
     extra: {
       apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api',
-      useMockData: process.env.EXPO_PUBLIC_USE_MOCK_DATA === 'true',
     },
     plugins: [
       ...(appJson.expo.plugins ?? []),
@@ -24,6 +23,7 @@ module.exports = () => ({
           color: '#7C3AED',
         },
       ],
+      '@react-native-community/datetimepicker',
     ],
   },
 });

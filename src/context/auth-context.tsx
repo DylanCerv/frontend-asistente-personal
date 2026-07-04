@@ -20,12 +20,14 @@ import {
   refreshSessionRequest,
   registerRequest,
 } from '@/services/auth/auth-api';
+import { updateMyProfile } from '@/services/profiles/profiles-api';
 import type { ApiUser, AuthPayload } from '@/types/api';
 
 type User = {
   id: string;
   email: string;
   name: string;
+  avatarUrl: string | null;
   roleId: number;
   roleName: string;
 };
@@ -49,6 +51,8 @@ type AuthContextValue = {
   signInWithApple: () => Promise<void>;
   signUp: (data: SignUpData) => Promise<void>;
   updateDisplayName: (name: string) => void;
+  updateProfile: (payload: { fullName: string }) => Promise<void>;
+  updateAvatar: (avatarUrl: string) => void;
   signOut: () => void;
 };
 
@@ -62,6 +66,7 @@ function mapApiUser(apiUser: ApiUser): User {
     id: apiUser.id,
     email: apiUser.email,
     name: profileName || emailLocal.charAt(0).toUpperCase() + emailLocal.slice(1),
+    avatarUrl: apiUser.profile?.avatarUrl ?? null,
     roleId: apiUser.roleId,
     roleName: apiUser.role.name,
   };
@@ -155,6 +160,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => (prev ? { ...prev, name: name.trim() } : prev));
   }, []);
 
+  const updateProfile = useCallback(async (payload: { fullName: string }) => {
+    const updated = await updateMyProfile({ fullName: payload.fullName });
+    const profileName = updated.full_name?.trim();
+    if (profileName) {
+      setUser((prev) => (prev ? { ...prev, name: profileName } : prev));
+    }
+  }, []);
+
+  const updateAvatar = useCallback((avatarUrl: string) => {
+    setUser((prev) => (prev ? { ...prev, avatarUrl } : prev));
+  }, []);
+
   const signUp = useCallback(async ({ name, email, password }: SignUpData) => {
     setIsLoading(true);
     try {
@@ -177,6 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signUp,
       updateDisplayName,
+      updateProfile,
+      updateAvatar,
       signOut,
     }),
     [
@@ -188,6 +207,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signUp,
       updateDisplayName,
+      updateProfile,
+      updateAvatar,
       signOut,
     ],
   );

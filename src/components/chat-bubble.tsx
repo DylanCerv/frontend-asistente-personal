@@ -11,28 +11,30 @@ type ChatBubbleProps = {
 export function ChatBubble({ message }: ChatBubbleProps) {
   const isUser = message.role === 'user';
 
+  if (isUser) {
+    return (
+      <View className="max-w-[84%] self-end">
+        <View className="rounded-[22px] rounded-br-md bg-brand px-4 py-3 shadow-sm dark:bg-brand-dark">
+          <Text className="text-[15px] leading-[22px] text-white">{message.content}</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View className={`max-w-[85%] gap-1 ${isUser ? 'self-end' : 'self-start'}`}>
-      {!isUser ? (
-        <View className="mb-0.5 flex-row items-center gap-1.5 px-1">
-          <KivoLogo size={16} />
-          <Text className="text-[11px] font-semibold text-subtle dark:text-subtle-dark">
-            {APP_NAME}
+    <View className="max-w-[88%] flex-row items-end gap-2 self-start">
+      <View className="mb-0.5">
+        <KivoLogo size={22} />
+      </View>
+      <View className="gap-1">
+        <Text className="px-1 text-[11px] font-semibold text-subtle dark:text-subtle-dark">
+          {APP_NAME}
+        </Text>
+        <View className="rounded-[22px] rounded-bl-md border border-border bg-white px-4 py-3 shadow-sm dark:border-border-dark dark:bg-surface-dark">
+          <Text className="text-[15px] leading-[22px] text-foreground dark:text-foreground-dark">
+            {message.content}
           </Text>
         </View>
-      ) : null}
-      <View
-        className={`rounded-[20px] px-4 py-3 ${
-          isUser
-            ? 'rounded-br-sm bg-brand dark:bg-brand-dark'
-            : 'rounded-bl-sm border border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
-        }`}>
-        <Text
-          className={`text-[15px] leading-[22px] ${
-            isUser ? 'text-white' : 'text-foreground dark:text-foreground-dark'
-          }`}>
-          {message.content}
-        </Text>
       </View>
     </View>
   );
