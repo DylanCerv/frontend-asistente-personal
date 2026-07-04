@@ -14,7 +14,7 @@ module.exports = () => ({
         'expo-av',
         {
           microphonePermission:
-            'Permite grabar notas de voz para que tu asistente las procese.',
+            'Permite grabar notas de voz para que Kivo las procese.',
         },
       ],
       [

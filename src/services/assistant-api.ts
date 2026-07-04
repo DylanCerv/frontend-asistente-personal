@@ -16,7 +16,7 @@ export async function sendMessageToAssistant(
 ): Promise<AssistantChatResponse> {
   if (!isAssistantApiConfigured()) {
     throw new AssistantApiError(
-      'El endpoint del asistente no está configurado. Agrega EXPO_PUBLIC_ASSISTANT_API_URL en tu archivo .env',
+      'El endpoint de Kivo no está configurado. Agrega EXPO_PUBLIC_ASSISTANT_API_URL en tu archivo .env',
     );
   }
 
@@ -32,7 +32,7 @@ export async function sendMessageToAssistant(
   if (!response.ok) {
     const errorBody = await response.text();
     throw new AssistantApiError(
-      `El asistente respondió con error (${response.status}): ${errorBody || response.statusText}`,
+      `Kivo respondió con error (${response.status}): ${errorBody || response.statusText}`,
       response.status,
     );
   }
@@ -40,7 +40,7 @@ export async function sendMessageToAssistant(
   const data = (await response.json()) as AssistantChatResponse;
 
   if (!data.reply?.trim()) {
-    throw new AssistantApiError('El asistente no devolvió una respuesta válida.');
+    throw new AssistantApiError('Kivo no devolvió una respuesta válida.');
   }
 
   return data;

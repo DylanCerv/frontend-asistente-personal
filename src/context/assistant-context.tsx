@@ -9,7 +9,9 @@ import {
 } from 'react';
 
 import { isAssistantApiConfigured, isMockDataMode, isWhisperConfigured } from '@/config/api';
+import { ASSISTANT_WELCOME_MESSAGE } from '@/constants/branding';
 import { sendMessageToAssistant } from '@/services/assistant-api';
+
 import { processVoiceRecording } from '@/services/audio/process-voice-recording';
 import { runMockAssistant } from '@/services/mock/mock-assistant-engine';
 import { simulateVoiceProcessing } from '@/services/mock/mock-voice-parser';
@@ -65,8 +67,7 @@ type AssistantContextValue = {
 
 const AssistantContext = createContext<AssistantContextValue | null>(null);
 
-const WELCOME_MESSAGE =
-  'Hola, soy tu asistente personal. Puedes preguntarme qué tienes hoy, pedirme recordatorios o simplemente hablarme. ¿En qué te ayudo?';
+const WELCOME_MESSAGE = ASSISTANT_WELCOME_MESSAGE;
 
 const DEMO_TRANSCRIPTION =
   'Recuérdame revisar las tareas urgentes de hoy y gasté 35 dólares en almuerzo.';

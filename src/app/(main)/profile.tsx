@@ -26,7 +26,7 @@ const QUICK_ACCESS_OPTIONS = [
   {
     id: 'deep-link',
     icon: 'link-outline' as const,
-    label: 'Enlace directo asistente://capture',
+    label: 'Enlace directo kivo://capture',
     description: 'Abre captura de voz desde atajos del sistema o Siri.',
     status: 'available' as const,
   },

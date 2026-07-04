@@ -73,7 +73,7 @@ export function buildReminderSchedule(records: MemoryRecord[]): ReminderSchedule
         id: `asistente-reminder-${record.id}-d${daysBefore}`,
         recordId: record.id,
         triggerAt,
-        title: 'Asistente',
+        title: 'Kivo',
         body: buildDayMessage(record, daysBefore),
       });
     }
@@ -84,7 +84,7 @@ export function buildReminderSchedule(records: MemoryRecord[]): ReminderSchedule
         id: `asistente-reminder-${record.id}-h1`,
         recordId: record.id,
         triggerAt: oneHourBefore,
-        title: 'Asistente',
+        title: 'Kivo',
         body: `Vence en 1 hora: ${record.title}`,
       });
     }

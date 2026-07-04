@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "asistente",
-    "slug": "asistente",
+    "name": "Kivo",
+    "slug": "kivo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "asistente",
+    "scheme": "kivo",
     "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -39,7 +39,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Permite que Asistente grabe notas de voz.",
+          "microphonePermission": "Permite que Kivo grabe notas de voz.",
           "enableBackgroundRecording": false
         }
       ],

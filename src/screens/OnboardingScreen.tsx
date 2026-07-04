@@ -56,7 +56,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
       setMicGranted(true);
       return;
     }
-    Alert.alert('Permiso requerido', 'El micrófono es esencial para usar el asistente por voz.');
+    Alert.alert('Permiso requerido', 'El micrófono es esencial para usar Kivo por voz.');
   }
 
   function handleSlideNext() {
@@ -97,7 +97,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
                 {userName ? `¡Hola, ${userName}!` : 'Último paso'}
               </Text>
               <Text className="text-center text-base text-subtle dark:text-subtle-dark">
-                Activa los permisos para que tu asistente funcione desde el primer día.
+                Activa los permisos para que Kivo funcione desde el primer día.
               </Text>
             </View>
 
@@ -160,7 +160,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
             </View>
 
             <Button
-              label="Empezar a usar el asistente"
+              label="Empezar a usar Kivo"
               onPress={handleFinish}
               disabled={!micGranted || isSubmitting}
               loading={isSubmitting}

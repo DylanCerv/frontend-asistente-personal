@@ -102,7 +102,7 @@ export default function AgendaScreen() {
           <View className="items-center gap-3 rounded-[28px] border border-dashed border-border p-10 dark:border-border-dark">
             <Ionicons name="calendar-outline" size={40} color="#6B6475" />
             <Text className="text-center text-subtle dark:text-subtle-dark">
-              No hay nada en este periodo. Habla con tu asistente para crear tareas o reuniones.
+              No hay nada en este periodo. Habla con Kivo para crear tareas o reuniones.
             </Text>
           </View>
         )}

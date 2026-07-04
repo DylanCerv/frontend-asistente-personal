@@ -15,13 +15,16 @@ import { ScreenSafeArea, useBottomInset } from '@/components/screen-safe-area';
 
 import { ChatBubble } from '@/components/chat-bubble';
 import { InsightCard } from '@/components/insight-card';
+import { KivoLogo } from '@/components/kivo-logo';
 import { SecondaryNavLinks } from '@/components/secondary-nav-links';
+import { APP_NAME } from '@/constants/branding';
 import { useAssistant } from '@/context/assistant-context';
 import { useAuth } from '@/context/auth-context';
 import { useVoiceCapture } from '@/context/voice-capture-context';
 import { buildInsights } from '@/services/insight-engine';
 import type { InsightAction, InsightItem } from '@/types/insight';
 import type { ChatMessage } from '@/types/assistant';
+
 
 const SUGGESTIONS = [
   '¿Qué tengo hoy?',
@@ -180,37 +183,46 @@ export default function HomeScreen() {
         ) : null}
 
         <View
-          className="w-full max-w-3xl flex-row items-end gap-2 self-center border-t border-border bg-canvas px-4 pt-3 dark:border-border-dark dark:bg-canvas-dark"
+          className="w-full max-w-3xl self-center border-t border-border bg-canvas px-4 pt-2 dark:border-border-dark dark:bg-canvas-dark"
           style={{ paddingBottom: bottomInset }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Enviar audio"
-            onPress={() => openCapture({ autoStart: true })}
-            className="mb-1 items-center justify-center gap-0.5 rounded-2xl border border-brand/30 bg-surface-soft px-2.5 py-1.5 active:opacity-85 dark:border-brand-dark/30 dark:bg-surface-soft-dark">
-            <Ionicons name="mic" size={22} color="#7C3AED" />
-            <Text className="text-[10px] font-semibold text-brand dark:text-brand-dark">Audio</Text>
-          </Pressable>
+          <View className="mb-1.5 flex-row items-center justify-center gap-1 opacity-70">
+            <KivoLogo size={12} />
+            <Text className="text-[10px] font-medium text-subtle dark:text-subtle-dark">
+              {APP_NAME}
+            </Text>
+          </View>
 
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Escribe o habla..."
-            placeholderTextColor="#6B6475"
-            multiline
-            className="max-h-28 min-h-[44px] flex-1 rounded-2xl border border-border bg-surface px-4 py-2.5 text-[15px] text-foreground dark:border-border-dark dark:bg-surface-dark dark:text-foreground-dark"
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-          />
+          <View className="flex-row items-end gap-2">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar audio"
+              onPress={() => openCapture({ autoStart: true })}
+              className="mb-1 items-center justify-center gap-0.5 rounded-2xl border border-brand/30 bg-surface-soft px-2.5 py-1.5 active:opacity-85 dark:border-brand-dark/30 dark:bg-surface-soft-dark">
+              <Ionicons name="mic" size={22} color="#7C3AED" />
+              <Text className="text-[10px] font-semibold text-brand dark:text-brand-dark">Audio</Text>
+            </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleSend}
-            disabled={!input.trim() || isProcessing}
-            className={`mb-1 h-11 w-11 items-center justify-center rounded-full active:opacity-85 ${
-              input.trim() ? 'bg-brand dark:bg-brand-dark' : 'bg-muted dark:bg-muted-dark'
-            }`}>
-            <Ionicons name="send" size={20} color={input.trim() ? '#FFFFFF' : '#6B6475'} />
-          </Pressable>
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder="Escribe o habla..."
+              placeholderTextColor="#6B6475"
+              multiline
+              className="max-h-28 min-h-[44px] flex-1 rounded-2xl border border-border bg-surface px-4 py-2.5 text-[15px] text-foreground dark:border-border-dark dark:bg-surface-dark dark:text-foreground-dark"
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+            />
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleSend}
+              disabled={!input.trim() || isProcessing}
+              className={`mb-1 h-11 w-11 items-center justify-center rounded-full active:opacity-85 ${
+                input.trim() ? 'bg-brand dark:bg-brand-dark' : 'bg-muted dark:bg-muted-dark'
+              }`}>
+              <Ionicons name="send" size={20} color={input.trim() ? '#FFFFFF' : '#6B6475'} />
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </ScreenSafeArea>

@@ -115,7 +115,7 @@ export default function MemoryScreen() {
           <View className="items-center gap-3 rounded-[28px] border border-dashed border-border p-10 dark:border-border-dark">
             <Ionicons name="time-outline" size={40} color="#6B6475" />
             <Text className="text-center text-subtle dark:text-subtle-dark">
-              Aún no hay registros. Habla con tu asistente desde Inicio.
+              Aún no hay registros. Habla con Kivo desde Inicio.
             </Text>
           </View>
         ) : filteredRecords.length === 0 ? (
