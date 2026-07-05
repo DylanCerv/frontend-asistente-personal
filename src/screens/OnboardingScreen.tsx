@@ -1,12 +1,17 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRef, useState } from 'react';
-import { Dimensions, FlatList, Pressable, Text, View } from 'react-native';
+import { Dimensions, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
+import { AppLockMethodPicker } from '@/components/app-lock-method-picker';
+import { AppLockDelayPicker } from '@/components/app-lock-delay-picker';
 import { KivoLogo } from '@/components/kivo-logo';
 import { Button } from '@/components/ui/button';
+import type { AppLockDelaySeconds, AppLockMethod } from '@/context/user-preferences-context';
+import { DEFAULT_APP_LOCK_DELAY_SECONDS } from '@/services/app-lock/lock-delay';
 import { showAppAlert } from '@/services/app-dialog';
+import { isAndroidWidgetSupported, isIosWidgetSupported } from '@/services/widgets/widget-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +40,9 @@ type OnboardingPhase = 'slides' | 'permissions';
 
 export type OnboardingCompleteOptions = {
   notificationsEnabled: boolean;
+  appLockMethod: AppLockMethod;
+  appLockDelaySeconds: AppLockDelaySeconds;
+  homeWidgetEnabled: boolean;
 };
 
 type OnboardingScreenProps = {
@@ -47,6 +55,11 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
   const [currentIndex, setCurrentIndex] = useState(0);
   const [micGranted, setMicGranted] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [appLockMethod, setAppLockMethod] = useState<AppLockMethod>('none');
+  const [appLockDelaySeconds, setAppLockDelaySeconds] = useState<AppLockDelaySeconds>(
+    DEFAULT_APP_LOCK_DELAY_SECONDS,
+  );
+  const [homeWidgetEnabled, setHomeWidgetEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const listRef = useRef<FlatList>(null);
 
@@ -80,7 +93,12 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
 
     setIsSubmitting(true);
     try {
-      await onComplete({ notificationsEnabled });
+      await onComplete({
+        notificationsEnabled,
+        appLockMethod,
+        appLockDelaySeconds,
+        homeWidgetEnabled,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -89,8 +107,11 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
   if (phase === 'permissions') {
     return (
       <ScreenSafeArea>
-        <View className="flex-1 justify-center px-6">
-          <View className="w-full max-w-md gap-8 self-center">
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="flex-grow px-5 pb-8 pt-4"
+          showsVerticalScrollIndicator={false}>
+          <View className="w-full gap-8">
             <View className="items-center gap-3">
               <View className="rounded-[26px] bg-surface p-2 shadow-sm dark:bg-surface-dark">
                 <KivoLogo size={64} />
@@ -103,7 +124,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
               </Text>
             </View>
 
-            <View className="gap-3">
+            <View className="w-full gap-5">
               <Pressable
                 accessibilityRole="button"
                 onPress={requestMicPermission}
@@ -159,6 +180,51 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
                   color={notificationsEnabled ? '#7C3AED' : '#6B6475'}
                 />
               </Pressable>
+
+              <AppLockMethodPicker
+                value={appLockMethod}
+                onChange={setAppLockMethod}
+                includeNone
+              />
+
+              {appLockMethod !== 'none' ? (
+                <AppLockDelayPicker
+                  value={appLockDelaySeconds}
+                  onChange={setAppLockDelaySeconds}
+                />
+              ) : null}
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setHomeWidgetEnabled((prev) => !prev)}
+                className={`flex-row items-center gap-4 rounded-2xl border p-4 active:opacity-80 ${
+                  homeWidgetEnabled
+                    ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
+                    : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
+                }`}>
+                <View className="h-11 w-11 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                  <Ionicons
+                    name="grid-outline"
+                    size={22}
+                    color={homeWidgetEnabled ? '#7C3AED' : '#6B6475'}
+                  />
+                </View>
+                <View className="flex-1 gap-0.5">
+                  <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
+                    Widget de hoy
+                  </Text>
+                  <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+                    {isAndroidWidgetSupported() || isIosWidgetSupported()
+                      ? 'Mira tareas y reuniones en tu pantalla de inicio'
+                      : 'Disponible en iPhone y Android con build nativo'}
+                  </Text>
+                </View>
+                <Ionicons
+                  name={homeWidgetEnabled ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={24}
+                  color={homeWidgetEnabled ? '#7C3AED' : '#6B6475'}
+                />
+              </Pressable>
             </View>
 
             <Button
@@ -168,7 +234,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
               loading={isSubmitting}
             />
           </View>
-        </View>
+        </ScrollView>
       </ScreenSafeArea>
     );
   }

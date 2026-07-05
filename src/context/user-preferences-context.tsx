@@ -16,13 +16,27 @@ import {
   type AppPlan,
   type UserSettings,
 } from '@/services/settings/settings-api';
+import { clearPin } from '@/services/app-lock/pin-store';
+import {
+  DEFAULT_APP_LOCK_DELAY_SECONDS,
+  parseAppLockDelaySeconds,
+  type AppLockDelaySeconds,
+} from '@/services/app-lock/lock-delay';
 
 export type { AppLanguage, AppPlan };
 
+export type { AppLockDelaySeconds };
+
 /** Local cache — provides instant state on startup while backend loads */
 const CACHE_KEY = '@asistente/settings_cache_v2';
-/** Biometric lock is device-specific, never synced to backend */
-const BIOMETRIC_KEY = '@asistente/biometric_lock';
+/** App lock is device-specific, never synced to backend */
+export type AppLockMethod = 'none' | 'biometric' | 'pin';
+
+const APP_LOCK_METHOD_KEY = '@asistente/app_lock_method';
+const APP_LOCK_DELAY_KEY = '@asistente/app_lock_delay_seconds';
+const LEGACY_BIOMETRIC_KEY = '@asistente/biometric_lock';
+const HOME_WIDGET_ENABLED_KEY = '@asistente/home_widget_enabled';
+export const HOME_WIDGET_SETUP_PENDING_KEY = '@asistente/home_widget_setup_pending';
 
 const DEFAULTS: Omit<UserSettings, 'user_id' | 'created_at' | 'updated_at'> = {
   language: 'es',
@@ -40,7 +54,11 @@ type UserPreferencesContextValue = {
   pushNotifications: boolean;
   reminderNotifications: boolean;
   autoSendVoice: boolean;
+  /** @deprecated Use appLockMethod !== 'none' */
   biometricLock: boolean;
+  appLockMethod: AppLockMethod;
+  appLockDelaySeconds: AppLockDelaySeconds;
+  homeWidgetEnabled: boolean;
   preferredName: string;
   plan: AppPlan;
   setLanguage: (value: AppLanguage) => Promise<void>;
@@ -48,6 +66,10 @@ type UserPreferencesContextValue = {
   setReminderNotifications: (value: boolean) => Promise<void>;
   setAutoSendVoice: (value: boolean) => Promise<void>;
   setBiometricLock: (value: boolean) => Promise<void>;
+  enableAppLock: (method: Exclude<AppLockMethod, 'none'>) => Promise<void>;
+  disableAppLock: () => Promise<void>;
+  setAppLockDelaySeconds: (value: AppLockDelaySeconds) => Promise<void>;
+  setHomeWidgetEnabled: (value: boolean) => Promise<void>;
   setPreferredName: (value: string) => Promise<void>;
   setPlan: (value: AppPlan) => Promise<void>;
   /** Call after login to hydrate settings from the backend */
@@ -62,7 +84,11 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const [pushNotifications, setPushNotificationsState] = useState(DEFAULTS.push_notifications);
   const [reminderNotifications, setReminderNotificationsState] = useState(DEFAULTS.reminder_notifications);
   const [autoSendVoice, setAutoSendVoiceState] = useState(DEFAULTS.auto_send_audio);
-  const [biometricLock, setBiometricLockState] = useState<boolean>(DEFAULTS.biometric_lock ?? false);
+  const [appLockMethod, setAppLockMethodState] = useState<AppLockMethod>('none');
+  const [appLockDelaySeconds, setAppLockDelaySecondsState] = useState<AppLockDelaySeconds>(
+    DEFAULT_APP_LOCK_DELAY_SECONDS,
+  );
+  const [homeWidgetEnabled, setHomeWidgetEnabledState] = useState(false);
   const [preferredName, setPreferredNameState] = useState(DEFAULTS.preferred_name);
   const [plan, setPlanState] = useState<AppPlan>(DEFAULTS.plan);
 
@@ -71,24 +97,43 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     if (typeof s.push_notifications === 'boolean') setPushNotificationsState(s.push_notifications);
     if (typeof s.reminder_notifications === 'boolean') setReminderNotificationsState(s.reminder_notifications);
     if (typeof s.auto_send_audio === 'boolean') setAutoSendVoiceState(s.auto_send_audio);
-    if (typeof s.biometric_lock === 'boolean') setBiometricLockState(s.biometric_lock);
     if (typeof s.preferred_name === 'string') setPreferredNameState(s.preferred_name);
     if (s.plan === 'free' || s.plan === 'pro') setPlanState(s.plan);
   }
 
-  /** Load from local cache for instant startup (biometric is always local) */
+  async function persistAppLockMethod(method: AppLockMethod) {
+    setAppLockMethodState(method);
+    await AsyncStorage.setItem(APP_LOCK_METHOD_KEY, method);
+    await AsyncStorage.setItem(LEGACY_BIOMETRIC_KEY, method !== 'none' ? 'true' : 'false');
+  }
+
+  /** Load from local cache for instant startup (app lock is always local) */
   useEffect(() => {
     let isMounted = true;
 
     async function loadCached() {
       try {
-        const [raw, biometric] = await Promise.all([
+        const [raw, method, legacyBiometric, homeWidget, lockDelay] = await Promise.all([
           AsyncStorage.getItem(CACHE_KEY),
-          AsyncStorage.getItem(BIOMETRIC_KEY),
+          AsyncStorage.getItem(APP_LOCK_METHOD_KEY),
+          AsyncStorage.getItem(LEGACY_BIOMETRIC_KEY),
+          AsyncStorage.getItem(HOME_WIDGET_ENABLED_KEY),
+          AsyncStorage.getItem(APP_LOCK_DELAY_KEY),
         ]);
         if (!isMounted) return;
         if (raw) applySettings(JSON.parse(raw) as Partial<typeof DEFAULTS>);
-        if (biometric !== null) setBiometricLockState(biometric === 'true' ? true : false);
+
+        if (method === 'biometric' || method === 'pin' || method === 'none') {
+          setAppLockMethodState(method);
+        } else if (legacyBiometric === 'true') {
+          setAppLockMethodState('biometric');
+        }
+
+        if (homeWidget === 'true') {
+          setHomeWidgetEnabledState(true);
+        }
+
+        setAppLockDelaySecondsState(parseAppLockDelaySeconds(lockDelay));
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -141,10 +186,35 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     await persist({ auto_send_audio: value });
   }, []);
 
-  /** Biometric lock is device-only — stored in AsyncStorage, never sent to backend */
+  const enableAppLock = useCallback(async (method: Exclude<AppLockMethod, 'none'>) => {
+    if (method === 'biometric') {
+      await clearPin();
+    }
+    await persistAppLockMethod(method);
+  }, []);
+
+  const disableAppLock = useCallback(async () => {
+    await clearPin();
+    await persistAppLockMethod('none');
+  }, []);
+
+  /** Backward-compatible toggle — prefer enableAppLock/disableAppLock in new UI */
   const setBiometricLock = useCallback(async (value: boolean) => {
-    setBiometricLockState(value);
-    await AsyncStorage.setItem(BIOMETRIC_KEY, value ? 'true' : 'false');
+    if (!value) {
+      await disableAppLock();
+      return;
+    }
+    await enableAppLock('biometric');
+  }, [disableAppLock, enableAppLock]);
+
+  const setAppLockDelaySeconds = useCallback(async (value: AppLockDelaySeconds) => {
+    setAppLockDelaySecondsState(value);
+    await AsyncStorage.setItem(APP_LOCK_DELAY_KEY, String(value));
+  }, []);
+
+  const setHomeWidgetEnabled = useCallback(async (value: boolean) => {
+    setHomeWidgetEnabledState(value);
+    await AsyncStorage.setItem(HOME_WIDGET_ENABLED_KEY, value ? 'true' : 'false');
   }, []);
 
   const setPreferredName = useCallback(async (value: string) => {
@@ -158,6 +228,8 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     await persist({ plan: value });
   }, []);
 
+  const biometricLock = appLockMethod !== 'none';
+
   const contextValue = useMemo(
     () => ({
       isLoading,
@@ -166,6 +238,9 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       reminderNotifications,
       autoSendVoice,
       biometricLock,
+      appLockMethod,
+      appLockDelaySeconds,
+      homeWidgetEnabled,
       preferredName,
       plan,
       setLanguage,
@@ -173,6 +248,10 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setReminderNotifications,
       setAutoSendVoice,
       setBiometricLock,
+      enableAppLock,
+      disableAppLock,
+      setAppLockDelaySeconds,
+      setHomeWidgetEnabled,
       setPreferredName,
       setPlan,
       loadFromBackend,
@@ -184,6 +263,9 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       reminderNotifications,
       autoSendVoice,
       biometricLock,
+      appLockMethod,
+      appLockDelaySeconds,
+      homeWidgetEnabled,
       preferredName,
       plan,
       setLanguage,
@@ -191,6 +273,10 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setReminderNotifications,
       setAutoSendVoice,
       setBiometricLock,
+      enableAppLock,
+      disableAppLock,
+      setAppLockDelaySeconds,
+      setHomeWidgetEnabled,
       setPreferredName,
       setPlan,
       loadFromBackend,

@@ -1,7 +1,6 @@
+import { SUPABASE_URL } from '@/config/api';
 import { getAccessToken } from '@/lib/auth/session-storage';
 import { updateMyProfile } from './profiles-api';
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const AVATARS_BUCKET = 'avatars';
 
 /**

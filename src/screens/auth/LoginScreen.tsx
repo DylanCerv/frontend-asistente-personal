@@ -14,6 +14,7 @@ type LoginScreenProps = {
   onRegister?: () => void;
   onBackFromEmailForm?: () => void;
   loading?: boolean;
+  socialLoadingProvider?: 'google' | 'apple' | null;
   error?: string;
 };
 
@@ -24,6 +25,7 @@ export function LoginScreen({
   onRegister,
   onBackFromEmailForm,
   loading = false,
+  socialLoadingProvider = null,
   error,
 }: LoginScreenProps) {
   const [email, setEmail] = useState('');
@@ -74,6 +76,9 @@ export function LoginScreen({
             onGooglePress={onGoogleSignIn}
             onApplePress={onAppleSignIn}
             onEmailPress={() => setShowEmailForm(true)}
+            loading={loading}
+            loadingProvider={socialLoadingProvider}
+            error={error}
           />
 
           <AuthSwitchLink

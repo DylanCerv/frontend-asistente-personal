@@ -49,6 +49,31 @@ export async function getMeRequest(): Promise<ApiUser> {
   return response.data.user;
 }
 
+export async function googleSignInRequest(idToken: string): Promise<AuthPayload> {
+  const response = await apiRequest<ApiDataResponse<AuthPayload>>('/auth/google', {
+    method: 'POST',
+    skipAuth: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+
+  return response.data;
+}
+
+export async function appleSignInRequest(
+  idToken: string,
+  nonce: string,
+): Promise<AuthPayload> {
+  const response = await apiRequest<ApiDataResponse<AuthPayload>>('/auth/apple', {
+    method: 'POST',
+    skipAuth: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, nonce }),
+  });
+
+  return response.data;
+}
+
 export async function changePasswordRequest(
   currentPassword: string,
   newPassword: string,

@@ -10,6 +10,9 @@ export default function LoginRoute() {
   const { isAuthenticated, isLoading, signIn, signInWithGoogle, signInWithApple } = useAuth();
   const { hasCompletedOnboarding, completeOnboarding } = useAppFlow();
   const [error, setError] = useState<string | null>(null);
+  const [socialLoadingProvider, setSocialLoadingProvider] = useState<'google' | 'apple' | null>(
+    null,
+  );
 
   if (isAuthenticated) {
     return <Redirect href={hasCompletedOnboarding ? '/(main)' : '/onboarding'} />;
@@ -18,6 +21,7 @@ export default function LoginRoute() {
   async function handleSignIn(credentials: { email: string; password: string }) {
     try {
       setError(null);
+      setSocialLoadingProvider(null);
       await signIn(credentials);
       await completeOnboarding();
       router.replace('/(main)');
@@ -29,6 +33,7 @@ export default function LoginRoute() {
   async function handleGoogleSignIn() {
     try {
       setError(null);
+      setSocialLoadingProvider('google');
       await signInWithGoogle();
       await completeOnboarding();
       router.replace('/(main)');
@@ -36,12 +41,15 @@ export default function LoginRoute() {
       setError(
         caughtError instanceof Error ? caughtError.message : 'No se pudo iniciar sesión con Google.',
       );
+    } finally {
+      setSocialLoadingProvider(null);
     }
   }
 
   async function handleAppleSignIn() {
     try {
       setError(null);
+      setSocialLoadingProvider('apple');
       await signInWithApple();
       await completeOnboarding();
       router.replace('/(main)');
@@ -49,6 +57,8 @@ export default function LoginRoute() {
       setError(
         caughtError instanceof Error ? caughtError.message : 'No se pudo iniciar sesión con Apple.',
       );
+    } finally {
+      setSocialLoadingProvider(null);
     }
   }
 
@@ -60,6 +70,7 @@ export default function LoginRoute() {
       onRegister={() => router.push('/register')}
       onBackFromEmailForm={() => setError(null)}
       loading={isLoading}
+      socialLoadingProvider={socialLoadingProvider}
       error={error ?? undefined}
     />
   );

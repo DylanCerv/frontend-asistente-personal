@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { isAssistantApiConfigured } from '@/config/api';
+import { isBackendConfigured } from '@/config/api';
 import { getAssistantWelcomeMessage } from '@/constants/branding';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import { sendMessageToAssistant } from '@/services/assistant-api';
@@ -204,7 +204,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (!isAssistantApiConfigured()) {
+        if (!isBackendConfigured()) {
           setMessages((prev) => [
             ...prev,
             createChatMessage('assistant', API_NOT_CONFIGURED_MESSAGE),
@@ -270,7 +270,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setProcessingStep('transcribing');
 
       try {
-        if (!isAssistantApiConfigured()) {
+        if (!isBackendConfigured()) {
           setMessages((prev) => [
             ...prev,
             createChatMessage('assistant', API_NOT_CONFIGURED_MESSAGE),

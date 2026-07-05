@@ -15,11 +15,14 @@ import {
 } from '@/lib/auth/session-storage';
 import { setUnauthorizedHandler } from '@/services/api/api-error';
 import {
+  appleSignInRequest,
   getMeRequest,
+  googleSignInRequest,
   loginRequest,
   refreshSessionRequest,
   registerRequest,
 } from '@/services/auth/auth-api';
+import { requestAppleSignIn, requestGoogleIdToken } from '@/services/auth/social-sign-in';
 import { updateMyProfile } from '@/services/profiles/profiles-api';
 import type { ApiUser, AuthPayload } from '@/types/api';
 
@@ -75,10 +78,6 @@ function mapApiUser(apiUser: ApiUser): User {
 async function persistAuth(payload: AuthPayload): Promise<User> {
   await setStoredSession(payload.session);
   return mapApiUser(payload.user);
-}
-
-function throwSocialAuthUnavailable(): never {
-  throw new Error('Inicio de sesión social no disponible aún. Usa tu correo.');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -141,7 +140,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     setIsLoading(true);
     try {
-      throwSocialAuthUnavailable();
+      const idToken = await requestGoogleIdToken();
+      const payload = await googleSignInRequest(idToken);
+      const nextUser = await persistAuth(payload);
+      setUser(nextUser);
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithApple = useCallback(async () => {
     setIsLoading(true);
     try {
-      throwSocialAuthUnavailable();
+      const { idToken, nonce } = await requestAppleSignIn();
+      const payload = await appleSignInRequest(idToken, nonce);
+      const nextUser = await persistAuth(payload);
+      setUser(nextUser);
     } finally {
       setIsLoading(false);
     }

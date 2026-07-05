@@ -8,7 +8,12 @@
     "scheme": "kivo",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "usesAppleSignIn": true,
+      "bundleIdentifier": "com.kivo.app",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.kivo.app.widget"]
+      }
     },
     "android": {
       "adaptiveIcon": {

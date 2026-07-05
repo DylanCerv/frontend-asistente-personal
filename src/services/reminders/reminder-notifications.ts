@@ -6,6 +6,7 @@ import { buildReminderSchedule } from '@/services/reminders/reminder-rules';
 import type { MemoryRecord } from '@/types/record';
 
 const ANDROID_CHANNEL_ID = 'asistente-reminders';
+const REMINDER_ID_PREFIXES = ['asistente-reminder-', 'kivo-exact-'] as const;
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -70,7 +71,9 @@ export async function cancelAppReminders(): Promise<void> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(
     scheduled
-      .filter((item) => item.identifier.startsWith('asistente-reminder-'))
+      .filter((item) =>
+        REMINDER_ID_PREFIXES.some((prefix) => item.identifier.startsWith(prefix)),
+      )
       .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)),
   );
 }
@@ -101,7 +104,7 @@ export async function syncReminderNotifications(
         content: {
           title: item.title,
           body: item.body,
-          data: { recordId: item.recordId },
+          data: { recordId: item.recordId, kind: item.id.startsWith('kivo-exact-') ? 'exact' : 'offset' },
           ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
         },
         trigger: {

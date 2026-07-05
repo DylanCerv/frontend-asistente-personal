@@ -10,6 +10,7 @@ import {
   ProfileSettingsSheet,
   type ProfileSheetType,
 } from '@/components/profile-settings-sheet';
+import { WidgetSetupSheet } from '@/components/widget-setup-sheet';
 import { ScreenHeader } from '@/components/screen-header';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAppFlow } from '@/context/app-flow-context';
@@ -52,17 +53,17 @@ const QUICK_ACCESS_OPTIONS: QuickAccessItem[] = [
   {
     id: 'widget',
     icon: 'grid-outline',
-    label: 'Widget en pantalla de inicio',
-    description: 'Un botón de micrófono gigante en tu pantalla principal.',
+    label: 'Widget de agenda',
+    description: 'Tareas y reuniones de hoy en tu pantalla de inicio.',
     status: 'available',
     tutorial: {
       platform: 'android',
       steps: [
+        'Activa el widget con el interruptor de arriba.',
         'Mantén presionado un espacio vacío en tu pantalla de inicio.',
-        'Toca "Widgets" (Samsung/Xiaomi/Pixel) o "Agregar widget" (otros).',
-        'Busca "Kivo" en la lista de widgets.',
-        'Arrastra el widget al lugar que prefieras.',
-        'Listo — toca el botón de micrófono para capturar sin abrir la app.',
+        'Toca "Widgets" y busca "Kivo".',
+        'Elige "Agenda de hoy" y arrástralo donde quieras.',
+        'Toca el widget para abrir la Agenda de Kivo.',
       ],
     },
   },
@@ -70,16 +71,16 @@ const QUICK_ACCESS_OPTIONS: QuickAccessItem[] = [
     id: 'widget-ios',
     icon: 'grid-outline',
     label: 'Widget en iPhone',
-    description: 'Agrega el widget de Kivo en la pantalla de inicio o Vista Hoy.',
+    description: 'Agenda de hoy en pantalla de inicio o Vista Hoy.',
     status: 'available',
     tutorial: {
       platform: 'ios',
       steps: [
-        'Mantén presionado cualquier área vacía de la pantalla de inicio hasta que los íconos tiemblen.',
-        'Toca el botón "+" (esquina superior izquierda).',
-        'Busca "Kivo" en la barra de búsqueda.',
-        'Selecciona el tamaño de widget que prefieras y toca "Agregar widget".',
-        'Toca "Listo" para guardar.',
+        'Activa el widget con el interruptor de arriba.',
+        'Mantén presionado cualquier área vacía de la pantalla de inicio.',
+        'Toca el botón "+" y busca "Kivo".',
+        'Elige "Agenda de hoy", selecciona el tamaño y toca "Agregar widget".',
+        'Toca el widget para abrir la Agenda de Kivo.',
       ],
     },
   },
@@ -157,11 +158,13 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut, updateAvatar } = useAuth();
   const { resetFlow } = useAppFlow();
-  const { autoSendVoice, setAutoSendVoice, language, preferredName } = useUserPreferences();
+  const { autoSendVoice, setAutoSendVoice, language, preferredName, homeWidgetEnabled, setHomeWidgetEnabled } =
+    useUserPreferences();
   const { plan } = useSubscription();
   const [activeSheet, setActiveSheet] = useState<ProfileSheetType>(null);
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [expandedQuickAccess, setExpandedQuickAccess] = useState<string | null>(null);
+  const [showWidgetSetup, setShowWidgetSetup] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatarUrl ?? null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -333,9 +336,45 @@ export default function ProfileScreen() {
               Accesos rápidos
             </Text>
             <Text className="text-xs text-subtle dark:text-subtle-dark">
-              Captura voz sin abrir la aplicación
+              Captura voz y widget de agenda sin abrir la app
             </Text>
           </View>
+
+          <View className="flex-row items-center justify-between gap-4 rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
+            <View className="flex-1 gap-1">
+              <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
+                Widget de agenda
+              </Text>
+              <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+                {homeWidgetEnabled
+                  ? Platform.OS === 'web'
+                    ? 'Disponible en build nativo iOS/Android.'
+                    : 'Sincroniza tareas y reuniones de hoy en tu pantalla de inicio.'
+                  : 'Desactivado — no se actualizará fuera de la app.'}
+              </Text>
+            </View>
+            <Switch
+              value={homeWidgetEnabled}
+              onValueChange={(value) => {
+                void setHomeWidgetEnabled(value);
+                if (value) setShowWidgetSetup(true);
+              }}
+              trackColor={{ false: '#E7DFF5', true: '#A78BFA' }}
+              thumbColor={homeWidgetEnabled ? '#7C3AED' : '#FFFFFF'}
+            />
+          </View>
+
+          {homeWidgetEnabled ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setShowWidgetSetup(true)}
+              className="flex-row items-center justify-center gap-2 rounded-2xl border border-brand/30 bg-surface-soft px-4 py-3 active:opacity-80 dark:border-brand-dark/30 dark:bg-surface-soft-dark">
+              <Ionicons name="help-circle-outline" size={18} color="#7C3AED" />
+              <Text className="text-sm font-medium text-brand dark:text-brand-dark">
+                Cómo agregar el widget
+              </Text>
+            </Pressable>
+          ) : null}
 
           {visibleQuickAccess.map((item) => (
             <View key={item.id}>
@@ -508,6 +547,7 @@ export default function ProfileScreen() {
       </ScrollView>
 
       <ProfileSettingsSheet type={activeSheet} onClose={() => setActiveSheet(null)} />
+      <WidgetSetupSheet visible={showWidgetSetup} onClose={() => setShowWidgetSetup(false)} />
     </ScreenSafeArea>
   );
 }

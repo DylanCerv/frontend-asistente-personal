@@ -1,5 +1,5 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { Pressable, ScrollView, Text } from 'react-native';
 
 const LINKS = [
@@ -21,7 +21,7 @@ export function SecondaryNavLinks() {
           key={link.id}
           accessibilityRole="button"
           accessibilityLabel={link.label}
-          onPress={() => router.push(link.href)}
+          onPress={() => router.push(link.href as Href)}
           className="flex-row items-center gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 active:opacity-85 dark:border-border-dark dark:bg-surface-dark">
           <Ionicons name={link.icon} size={16} color="#7C3AED" />
           <Text className="text-xs font-semibold text-foreground dark:text-foreground-dark">

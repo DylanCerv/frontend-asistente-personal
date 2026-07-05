@@ -13,6 +13,11 @@ import {
 } from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
+import { AppLockPinSetup } from '@/components/app-lock-pin-setup';
+import {
+  AppLockMethodPicker,
+} from '@/components/app-lock-method-picker';
+import { AppLockDelayPicker } from '@/components/app-lock-delay-picker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
 import {
@@ -23,6 +28,7 @@ import {
 import { useAuth } from '@/context/auth-context';
 import { useSubscription } from '@/context/subscription-context';
 import { useUserPreferences, type AppLanguage } from '@/context/user-preferences-context';
+import { useAppLockMethodSetup } from '@/hooks/use-app-lock-method-setup';
 import { ensureNotificationPermissions } from '@/services/reminders/reminder-notifications';
 import { uploadAvatar } from '@/services/profiles/avatar-upload';
 import { changePasswordRequest } from '@/services/auth/auth-api';
@@ -56,7 +62,9 @@ export function ProfileSettingsSheet({ type, onClose }: ProfileSettingsSheetProp
           </Pressable>
         </View>
 
-        <ScrollView contentContainerClassName="gap-6 p-5 pb-10">
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName={`flex-grow pb-10 ${type === 'security' ? 'gap-8 px-5 pt-2' : 'gap-6 p-5'}`}>
           {type === 'personal' ? <PersonalDataForm onClose={onClose} /> : null}
           {type === 'security' ? <SecuritySettings /> : null}
           {type === 'notifications' ? <NotificationSettings /> : null}
@@ -179,7 +187,13 @@ function PersonalDataForm({ onClose }: { onClose: () => void }) {
 }
 
 function SecuritySettings() {
-  const { biometricLock, setBiometricLock } = useUserPreferences();
+  const { appLockMethod, appLockDelaySeconds, setAppLockDelaySeconds } = useUserPreferences();
+  const {
+    showPinSetup,
+    handleMethodChange,
+    handlePinSetupComplete,
+    handlePinSetupCancel,
+  } = useAppLockMethodSetup();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -214,16 +228,39 @@ function SecuritySettings() {
   }
 
   return (
-    <View className="gap-4">
-      <SettingToggle
-        label="Bloqueo biométrico"
-        description="Usa huella o Face ID para abrir la app (solo este dispositivo)"
-        value={biometricLock}
-        onValueChange={setBiometricLock}
+    <View className="w-full flex-1 gap-8">
+      <View className="w-full gap-4">
+        <View className="gap-1">
+          <Text className="text-base font-semibold text-foreground dark:text-foreground-dark">
+            Bloqueo de Kivo
+          </Text>
+          <Text className="text-sm text-subtle dark:text-subtle-dark">
+            Un método de desbloqueo por dispositivo.
+          </Text>
+        </View>
+        <AppLockMethodPicker value={appLockMethod} onChange={handleMethodChange} />
+        {appLockMethod !== 'none' ? (
+          <AppLockDelayPicker
+            value={appLockDelaySeconds}
+            onChange={(value) => void setAppLockDelaySeconds(value)}
+          />
+        ) : null}
+      </View>
+
+      <View className="h-px w-full bg-border dark:bg-border-dark" />
+
+      <AppLockPinSetup
+        visible={showPinSetup}
+        title="Crea tu PIN"
+        onComplete={async () => {
+          await handlePinSetupComplete();
+          showAppAlert('Listo', 'Kivo se desbloqueará solo con este PIN.');
+        }}
+        onCancel={handlePinSetupCancel}
       />
 
-      <View className="gap-3 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
-        <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
+      <View className="w-full gap-4">
+        <Text className="text-base font-semibold text-foreground dark:text-foreground-dark">
           Cambiar contraseña
         </Text>
         <Input
@@ -284,7 +321,7 @@ function NotificationSettings() {
       />
       <SettingToggle
         label="Recordatorios inteligentes"
-        description="Kivo te avisa 7d, 3d, mañana, hoy y 1h antes del vencimiento de cada tarea"
+        description="Kivo te avisa a la hora exacta y también 7d, 3d, mañana, hoy y 1h antes"
         value={reminderNotifications}
         onValueChange={handleReminderChange}
       />
