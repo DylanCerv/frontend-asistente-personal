@@ -23,8 +23,14 @@ import {
   type AppLockDelaySeconds,
 } from '@/services/app-lock/lock-delay';
 
-export type { AppLanguage, AppPlan };
+import {
+  DEFAULT_REMINDER_ALERT_STYLE,
+  parseReminderAlertStyle,
+  type ReminderAlertStyle,
+} from '@/services/reminders/reminder-alert-style';
 
+export type { ReminderAlertStyle };
+export type { AppLanguage, AppPlan };
 export type { AppLockDelaySeconds };
 
 /** Local cache — provides instant state on startup while backend loads */
@@ -42,6 +48,7 @@ const DEFAULTS: Omit<UserSettings, 'user_id' | 'created_at' | 'updated_at'> = {
   language: 'es',
   push_notifications: true,
   reminder_notifications: true,
+  reminder_alert_style: DEFAULT_REMINDER_ALERT_STYLE,
   auto_send_audio: false,
   biometric_lock: false,
   preferred_name: '',
@@ -53,6 +60,7 @@ type UserPreferencesContextValue = {
   language: AppLanguage;
   pushNotifications: boolean;
   reminderNotifications: boolean;
+  reminderAlertStyle: ReminderAlertStyle;
   autoSendVoice: boolean;
   /** @deprecated Use appLockMethod !== 'none' */
   biometricLock: boolean;
@@ -64,6 +72,7 @@ type UserPreferencesContextValue = {
   setLanguage: (value: AppLanguage) => Promise<void>;
   setPushNotifications: (value: boolean) => Promise<void>;
   setReminderNotifications: (value: boolean) => Promise<void>;
+  setReminderAlertStyle: (value: ReminderAlertStyle) => Promise<void>;
   setAutoSendVoice: (value: boolean) => Promise<void>;
   setBiometricLock: (value: boolean) => Promise<void>;
   enableAppLock: (method: Exclude<AppLockMethod, 'none'>) => Promise<void>;
@@ -83,6 +92,9 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>(DEFAULTS.language);
   const [pushNotifications, setPushNotificationsState] = useState(DEFAULTS.push_notifications);
   const [reminderNotifications, setReminderNotificationsState] = useState(DEFAULTS.reminder_notifications);
+  const [reminderAlertStyle, setReminderAlertStyleState] = useState<ReminderAlertStyle>(
+    DEFAULTS.reminder_alert_style,
+  );
   const [autoSendVoice, setAutoSendVoiceState] = useState(DEFAULTS.auto_send_audio);
   const [appLockMethod, setAppLockMethodState] = useState<AppLockMethod>('none');
   const [appLockDelaySeconds, setAppLockDelaySecondsState] = useState<AppLockDelaySeconds>(
@@ -96,6 +108,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     if (s.language === 'es' || s.language === 'en') setLanguageState(s.language);
     if (typeof s.push_notifications === 'boolean') setPushNotificationsState(s.push_notifications);
     if (typeof s.reminder_notifications === 'boolean') setReminderNotificationsState(s.reminder_notifications);
+    if (s.reminder_alert_style) setReminderAlertStyleState(parseReminderAlertStyle(s.reminder_alert_style));
     if (typeof s.auto_send_audio === 'boolean') setAutoSendVoiceState(s.auto_send_audio);
     if (typeof s.preferred_name === 'string') setPreferredNameState(s.preferred_name);
     if (s.plan === 'free' || s.plan === 'pro') setPlanState(s.plan);
@@ -181,6 +194,11 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     await persist({ reminder_notifications: value });
   }, []);
 
+  const setReminderAlertStyle = useCallback(async (value: ReminderAlertStyle) => {
+    setReminderAlertStyleState(value);
+    await persist({ reminder_alert_style: value });
+  }, []);
+
   const setAutoSendVoice = useCallback(async (value: boolean) => {
     setAutoSendVoiceState(value);
     await persist({ auto_send_audio: value });
@@ -236,6 +254,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       language,
       pushNotifications,
       reminderNotifications,
+      reminderAlertStyle,
       autoSendVoice,
       biometricLock,
       appLockMethod,
@@ -246,6 +265,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setLanguage,
       setPushNotifications,
       setReminderNotifications,
+      setReminderAlertStyle,
       setAutoSendVoice,
       setBiometricLock,
       enableAppLock,
@@ -261,6 +281,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       language,
       pushNotifications,
       reminderNotifications,
+      reminderAlertStyle,
       autoSendVoice,
       biometricLock,
       appLockMethod,
@@ -271,6 +292,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setLanguage,
       setPushNotifications,
       setReminderNotifications,
+      setReminderAlertStyle,
       setAutoSendVoice,
       setBiometricLock,
       enableAppLock,

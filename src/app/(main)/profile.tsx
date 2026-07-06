@@ -112,11 +112,21 @@ const QUICK_ACCESS_OPTIONS: QuickAccessItem[] = [
   },
   {
     id: 'lock-screen',
-    icon: 'lock-closed-outline',
-    label: 'Botón en pantalla bloqueada',
-    description: 'Accede a Kivo sin desbloquear el teléfono.',
-    status: 'coming',
-    tutorial: undefined,
+    icon: 'alarm-outline',
+    label: 'Alertas en pantalla bloqueada',
+    description: 'Sonido a la hora exacta o notificación suave para recordatorios del día.',
+    status: 'available',
+    tutorial: {
+      platform: 'both',
+      steps: [
+        'Ve a Perfil → Notificaciones y activa "Notificaciones push" (permiso del celular).',
+        'Activa "Recordatorios inteligentes" y elige sonido, vibración o ambos.',
+        'Habla con Kivo: "Avísame a las 7:30 pm para sacar el pastel del horno".',
+        'A esa hora sonará una alerta en tu pantalla bloqueada, aunque no abras la app.',
+        'Para avisos del día sin hora: "Recuérdame que hoy debo ir a la peluquería".',
+        'Ese aviso llega desde las 5:00 am como notificación suave en el celular.',
+      ],
+    },
   },
 ];
 
@@ -336,7 +346,7 @@ export default function ProfileScreen() {
               Accesos rápidos
             </Text>
             <Text className="text-xs text-subtle dark:text-subtle-dark">
-              Captura voz y widget de agenda sin abrir la app
+              Captura voz, widget de agenda y alertas en tu pantalla bloqueada
             </Text>
           </View>
 

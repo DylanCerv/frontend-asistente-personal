@@ -2,8 +2,6 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import {
   AudioQuality,
   IOSOutputFormat,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
   useAudioRecorder,
@@ -14,6 +12,12 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { showAppAlert } from '@/services/app-dialog';
+import {
+  beginAudioRecordingSession,
+  configureRecordingAudioMode,
+  ensureMicrophonePermission,
+  releaseAudioRecorderSession,
+} from '@/services/audio/audio-recorder-session';
 
 const VOICE_RECORDING_OPTIONS: RecordingOptions = {
   extension: '.m4a',
@@ -70,21 +74,14 @@ export function AudioQuickAction() {
   }, [savedUri, player]);
 
   async function startRecording() {
-    const permission = await requestRecordingPermissionsAsync();
-
-    if (!permission.granted) {
+    const granted = await ensureMicrophonePermission();
+    if (!granted) {
       showAppAlert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.');
       return;
     }
 
-    await setAudioModeAsync({
-      allowsRecording: true,
-      playsInSilentMode: true,
-      interruptionMode: 'duckOthers',
-    });
-
-    await audioRecorder.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
-    audioRecorder.record();
+    await configureRecordingAudioMode();
+    await beginAudioRecordingSession(audioRecorder, VOICE_RECORDING_OPTIONS);
   }
 
   async function handleRecordPress() {
@@ -111,6 +108,7 @@ export function AudioQuickAction() {
       }
 
       setSavedUri(null);
+      await releaseAudioRecorderSession(audioRecorder);
       await startRecording();
     } catch {
       showAppAlert('No se pudo grabar', 'Intenta nuevamente en unos segundos.');

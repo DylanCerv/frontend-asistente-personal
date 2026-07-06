@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { getBiometricCapability } from '@/services/app-lock/biometric';
 import { markSkipAppLockOnce } from '@/services/app-lock/session';
-import { ensureNotificationPermissions } from '@/services/reminders/reminder-notifications';
+import { requestNotificationPermissions } from '@/services/reminders/reminder-notifications';
 import { showAppAlert } from '@/services/app-dialog';
 
 export default function OnboardingRoute() {
@@ -68,11 +68,19 @@ export default function OnboardingRoute() {
     appLockDelaySeconds: AppLockDelaySeconds;
     homeWidgetEnabled: boolean;
   }) {
+    let pushEnabled = false;
     if (notificationsEnabled) {
-      await ensureNotificationPermissions();
+      pushEnabled = await requestNotificationPermissions();
+      if (!pushEnabled) {
+        showAppAlert(
+          'Permiso requerido',
+          'Sin acceso a notificaciones del celular, Kivo no podrá enviarte recordatorios. Puedes activarlo después en Perfil.',
+        );
+      }
     }
-    await setPushNotifications(notificationsEnabled);
-    await setReminderNotifications(notificationsEnabled);
+
+    await setPushNotifications(pushEnabled);
+    await setReminderNotifications(pushEnabled);
     await setHomeWidgetEnabled(homeWidgetEnabled);
     await setAppLockDelaySeconds(appLockDelaySeconds);
 

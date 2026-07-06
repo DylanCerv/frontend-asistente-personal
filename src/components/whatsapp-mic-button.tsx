@@ -9,8 +9,6 @@
  */
 import Ionicons from '@react-native-vector-icons/ionicons';
 import {
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
@@ -26,6 +24,12 @@ import Animated, {
 
 import { LIGHT_VOICE_RECORDING_OPTIONS } from '@/constants/voice-recording';
 import { useAssistant } from '@/context/assistant-context';
+import {
+  beginAudioRecordingSession,
+  configureRecordingAudioMode,
+  ensureMicrophonePermission,
+  releaseAudioRecorderSession,
+} from '@/services/audio/audio-recorder-session';
 
 type MicPhase = 'idle' | 'recording_held' | 'recording_locked' | 'sending';
 
@@ -70,8 +74,6 @@ export function WhatsAppMicButton({ disabled = false }: { disabled?: boolean }) 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedAtRef = useRef<number>(0);
-  /** True when the recorder has been prepared but not yet stopped/released */
-  const isPreparedRef = useRef(false);
   /** Guard against concurrent startRecording calls from rapid gestures */
   const isStartingRef = useRef(false);
 
@@ -135,42 +137,29 @@ export function WhatsAppMicButton({ disabled = false }: { disabled?: boolean }) 
   // ─── Recording helpers ───────────────────────────────────────────────────
 
   async function startRecording() {
-    // Prevent concurrent/rapid double-starts
     if (isStartingRef.current || phaseRef.current !== 'idle') return;
     isStartingRef.current = true;
 
     try {
-      const permission = await requestRecordingPermissionsAsync();
-      if (!permission.granted) return;
+      const granted = await ensureMicrophonePermission();
+      if (!granted) return;
 
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-        interruptionMode: 'duckOthers',
-      });
-
-      // Only prepare if not already prepared (avoids the "already prepared" error)
-      if (!isPreparedRef.current) {
-        await audioRecorder.prepareToRecordAsync(LIGHT_VOICE_RECORDING_OPTIONS);
-        isPreparedRef.current = true;
-      }
-
-      audioRecorder.record();
+      await configureRecordingAudioMode();
+      await beginAudioRecordingSession(audioRecorder, LIGHT_VOICE_RECORDING_OPTIONS);
       startTimer();
       setPhase('recording_held');
       setShowLockHint(false);
       setIsPaused(false);
+    } catch {
+      await releaseAudioRecorderSession(audioRecorder);
+      setPhase('idle');
     } finally {
       isStartingRef.current = false;
     }
   }
 
   async function stopRecorder() {
-    if (recorderState.isRecording) {
-      await audioRecorder.stop();
-    }
-    // Mark as not prepared so next call re-prepares cleanly
-    isPreparedRef.current = false;
+    await releaseAudioRecorderSession(audioRecorder);
     clearTimer();
   }
 
@@ -191,7 +180,6 @@ export function WhatsAppMicButton({ disabled = false }: { disabled?: boolean }) 
   async function dispatchSend(uri: string) {
     setPhase('sending');
     savedUriRef.current = null;
-    isPreparedRef.current = false;
     setDurationMs(0);
     setIsPaused(false);
     try {
@@ -209,9 +197,8 @@ export function WhatsAppMicButton({ disabled = false }: { disabled?: boolean }) 
   }
 
   async function handleCancel() {
-    await stopRecorder(); // already resets isPreparedRef
+    await stopRecorder();
     savedUriRef.current = null;
-    isPreparedRef.current = false;
     setPhase('idle');
     setDurationMs(0);
     setIsPaused(false);

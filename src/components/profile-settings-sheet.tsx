@@ -27,9 +27,12 @@ import {
 } from '@/constants/subscription-plans';
 import { useAuth } from '@/context/auth-context';
 import { useSubscription } from '@/context/subscription-context';
-import { useUserPreferences, type AppLanguage } from '@/context/user-preferences-context';
+import { useUserPreferences, type AppLanguage, type ReminderAlertStyle } from '@/context/user-preferences-context';
 import { useAppLockMethodSetup } from '@/hooks/use-app-lock-method-setup';
-import { ensureNotificationPermissions } from '@/services/reminders/reminder-notifications';
+import {
+  cancelAppReminders,
+  requestNotificationPermissions,
+} from '@/services/reminders/reminder-notifications';
 import { uploadAvatar } from '@/services/profiles/avatar-upload';
 import { changePasswordRequest } from '@/services/auth/auth-api';
 import { showAppAlert } from '@/services/app-dialog';
@@ -297,39 +300,151 @@ function NotificationSettings() {
   const {
     pushNotifications,
     reminderNotifications,
+    reminderAlertStyle,
     setPushNotifications,
     setReminderNotifications,
+    setReminderAlertStyle,
   } = useUserPreferences();
 
+  const remindersAvailable = pushNotifications;
+
   async function handlePushChange(value: boolean) {
-    if (value) await ensureNotificationPermissions();
-    await setPushNotifications(value);
+    if (!value) {
+      await setPushNotifications(false);
+      await setReminderNotifications(false);
+      await cancelAppReminders();
+      return;
+    }
+
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      await setPushNotifications(false);
+      await setReminderNotifications(false);
+      showAppAlert(
+        'Permiso requerido',
+        'Sin acceso a notificaciones del celular, Kivo no puede enviarte alertas. Actívalas en la configuración del sistema.',
+      );
+      return;
+    }
+
+    await setPushNotifications(true);
   }
 
   async function handleReminderChange(value: boolean) {
-    if (value) await ensureNotificationPermissions();
-    await setReminderNotifications(value);
+    if (!value) {
+      await setReminderNotifications(false);
+      return;
+    }
+
+    if (!pushNotifications) {
+      const granted = await requestNotificationPermissions();
+      if (!granted) {
+        showAppAlert(
+          'Permiso requerido',
+          'Primero debes permitir notificaciones del celular para usar recordatorios inteligentes.',
+        );
+        return;
+      }
+      await setPushNotifications(true);
+    }
+
+    await setReminderNotifications(true);
   }
 
   return (
     <View className="gap-3">
       <SettingToggle
         label="Notificaciones push"
-        description="Alertas generales en tu teléfono"
+        description="Permite que Kivo use las notificaciones y alertas del celular"
         value={pushNotifications}
         onValueChange={handlePushChange}
       />
       <SettingToggle
         label="Recordatorios inteligentes"
-        description="Kivo te avisa a la hora exacta y también 7d, 3d, mañana, hoy y 1h antes"
-        value={reminderNotifications}
+        description={
+          remindersAvailable
+            ? 'Alarma a la hora exacta y avisos suaves desde las 5:00 am'
+            : 'Requiere permisos de notificaciones del celular'
+        }
+        value={reminderNotifications && remindersAvailable}
         onValueChange={handleReminderChange}
       />
+      {reminderNotifications && remindersAvailable ? (
+        <ReminderAlertStylePicker value={reminderAlertStyle} onChange={setReminderAlertStyle} />
+      ) : null}
+      <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
+        <Text className="text-xs font-semibold text-foreground dark:text-foreground-dark">
+          Niveles de alerta
+        </Text>
+        <Text className="mt-2 text-xs leading-5 text-subtle dark:text-subtle-dark">
+          Con hora exacta (ej. 7:30 pm): alerta fuerte en pantalla bloqueada.{'\n'}
+          Solo día (ej. el sábado ir a la peluquería): aviso suave desde las 5:00 am.
+        </Text>
+      </View>
       <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
         <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
-          Los recordatorios se programan localmente en tu dispositivo. Asegúrate de que las
-          notificaciones de Kivo estén habilitadas en la configuración del sistema.
+          Si niegas los permisos del celular, las notificaciones push se desactivan automáticamente.
+          Los recordatorios solo funcionan con Kivo instalado (no en Expo Go).
         </Text>
+      </View>
+    </View>
+  );
+}
+
+type ReminderAlertStylePickerProps = {
+  value: ReminderAlertStyle;
+  onChange: (value: ReminderAlertStyle) => Promise<void>;
+};
+
+const ALERT_STYLE_OPTIONS: {
+  id: ReminderAlertStyle;
+  label: string;
+  icon: 'volume-high-outline' | 'phone-portrait-outline' | 'notifications-outline';
+}[] = [
+  { id: 'sound', label: 'Sonido', icon: 'volume-high-outline' },
+  { id: 'vibration', label: 'Vibración', icon: 'phone-portrait-outline' },
+  { id: 'both', label: 'Ambos', icon: 'notifications-outline' },
+];
+
+function ReminderAlertStylePicker({ value, onChange }: ReminderAlertStylePickerProps) {
+  return (
+    <View className="gap-2 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
+      <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+        Estilo de alerta
+      </Text>
+      <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+        Cómo quieres que te avise el celular cuando llegue un recordatorio.
+      </Text>
+      <View className="mt-1 flex-row gap-2">
+        {ALERT_STYLE_OPTIONS.map((option) => {
+          const selected = value === option.id;
+          return (
+            <Pressable
+              key={option.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => void onChange(option.id)}
+              className={`flex-1 items-center gap-1.5 rounded-2xl border px-2 py-3 active:opacity-80 ${
+                selected
+                  ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
+                  : 'border-border bg-canvas dark:border-border-dark dark:bg-canvas-dark'
+              }`}>
+              <Ionicons
+                name={option.icon}
+                size={18}
+                color={selected ? '#7C3AED' : '#6B6475'}
+              />
+              <Text
+                className={`text-xs font-medium ${
+                  selected
+                    ? 'text-brand dark:text-brand-dark'
+                    : 'text-foreground dark:text-foreground-dark'
+                }`}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );

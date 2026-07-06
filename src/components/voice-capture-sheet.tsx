@@ -1,7 +1,5 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import {
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
   useAudioRecorder,
@@ -13,6 +11,12 @@ import { useBottomInset } from '@/components/screen-safe-area';
 
 import { LIGHT_VOICE_RECORDING_OPTIONS } from '@/constants/voice-recording';
 import { useAssistant } from '@/context/assistant-context';
+import {
+  beginAudioRecordingSession,
+  configureRecordingAudioMode,
+  ensureMicrophonePermission,
+  releaseAudioRecorderSession,
+} from '@/services/audio/audio-recorder-session';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import { useVoiceCapture } from '@/context/voice-capture-context';
 
@@ -54,6 +58,9 @@ export function VoiceCaptureSheet() {
   const recordingStartedAt = useRef<number | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasAutoStarted = useRef(false);
+  const isStartingRef = useRef(false);
+  /** True only after the current session actually started recording (avoids stale recorder URLs). */
+  const sawRecordingThisSessionRef = useRef(false);
 
   const isRecording = phase === 'recording' || recorderState.isRecording;
 
@@ -66,7 +73,10 @@ export function VoiceCaptureSheet() {
   useEffect(() => {
     if (!isOpen) {
       hasAutoStarted.current = false;
+      isStartingRef.current = false;
+      sawRecordingThisSessionRef.current = false;
       stopRecordingTimer();
+      void releaseAudioRecorderSession(audioRecorder);
       setPhase('idle');
       setSavedUri(null);
       setError(null);
@@ -75,29 +85,42 @@ export function VoiceCaptureSheet() {
       return;
     }
 
-    if (autoStart && !hasAutoStarted.current && phase === 'idle') {
+    if (autoStart && !hasAutoStarted.current && phase === 'idle' && !isStartingRef.current) {
       hasAutoStarted.current = true;
       void startRecording();
     }
   }, [isOpen, autoStart, phase]);
 
   useEffect(() => {
-    if (!recorderState.isRecording && recorderState.url && phase === 'recording') {
-      const durationFromRecorder = recorderState.durationMillis || 0;
-      const durationFromTimer = recordingStartedAt.current
-        ? Date.now() - recordingStartedAt.current
-        : 0;
-      const finalDuration = Math.max(durationFromRecorder, durationFromTimer);
+    if (recorderState.isRecording) {
+      sawRecordingThisSessionRef.current = true;
+      return;
+    }
 
-      stopRecordingTimer();
-      setRecordingDurationMs(finalDuration);
-      setSavedUri(recorderState.url);
+    if (
+      !sawRecordingThisSessionRef.current ||
+      !recorderState.url ||
+      phase !== 'recording'
+    ) {
+      return;
+    }
 
-      if (autoSendVoice && recorderState.url) {
-        void finishAndSendAudio(recorderState.url);
-      } else {
-        setPhase('review');
-      }
+    sawRecordingThisSessionRef.current = false;
+
+    const durationFromRecorder = recorderState.durationMillis || 0;
+    const durationFromTimer = recordingStartedAt.current
+      ? Date.now() - recordingStartedAt.current
+      : 0;
+    const finalDuration = Math.max(durationFromRecorder, durationFromTimer);
+
+    stopRecordingTimer();
+    setRecordingDurationMs(finalDuration);
+    setSavedUri(recorderState.url);
+
+    if (autoSendVoice) {
+      void finishAndSendAudio(recorderState.url);
+    } else {
+      setPhase('review');
     }
   }, [recorderState.isRecording, recorderState.url, phase, autoSendVoice]);
 
@@ -132,37 +155,53 @@ export function VoiceCaptureSheet() {
   }
 
   async function startRecording() {
-    setError(null);
-    setSavedUri(null);
-    setRecordingDurationMs(0);
+    if (isStartingRef.current || phase === 'processing') return;
+    isStartingRef.current = true;
 
-    const permission = await requestRecordingPermissionsAsync();
-    if (!permission.granted) {
-      setError('Se necesita permiso de micrófono para grabar.');
-      return;
+    try {
+      setError(null);
+      setSavedUri(null);
+      setRecordingDurationMs(0);
+      sawRecordingThisSessionRef.current = false;
+
+      const granted = await ensureMicrophonePermission();
+      if (!granted) {
+        setError('Se necesita permiso de micrófono para grabar.');
+        return;
+      }
+
+      if (playerStatus.playing) player.pause();
+
+      await releaseAudioRecorderSession(audioRecorder);
+      await configureRecordingAudioMode();
+      await beginAudioRecordingSession(audioRecorder, LIGHT_VOICE_RECORDING_OPTIONS);
+      startRecordingTimer();
+      setPhase('recording');
+    } catch {
+      setError('No se pudo iniciar la grabación. Intenta de nuevo.');
+      sawRecordingThisSessionRef.current = false;
+      await releaseAudioRecorderSession(audioRecorder);
+      setPhase('idle');
+    } finally {
+      isStartingRef.current = false;
     }
-
-    if (playerStatus.playing) player.pause();
-
-    await setAudioModeAsync({
-      allowsRecording: true,
-      playsInSilentMode: true,
-      interruptionMode: 'duckOthers',
-    });
-
-    await audioRecorder.prepareToRecordAsync(LIGHT_VOICE_RECORDING_OPTIONS);
-    audioRecorder.record();
-    startRecordingTimer();
-    setPhase('recording');
   }
 
   async function finishAndSendAudio(audioUri: string) {
+    sawRecordingThisSessionRef.current = false;
     setPhase('processing');
-    closeCapture();
-    await sendVoiceMessage(audioUri);
-    setPhase('idle');
     setSavedUri(null);
     setRecordingDurationMs(0);
+    if (playerStatus.playing) player.pause();
+    await releaseAudioRecorderSession(audioRecorder);
+    closeCapture();
+    try {
+      await sendVoiceMessage(audioUri);
+    } finally {
+      setPhase('idle');
+      setSavedUri(null);
+      setRecordingDurationMs(0);
+    }
   }
 
   async function handleStopRecording() {
@@ -178,8 +217,11 @@ export function VoiceCaptureSheet() {
 
   async function handleRecordAgain() {
     if (playerStatus.playing) player.pause();
+    sawRecordingThisSessionRef.current = false;
     setSavedUri(null);
     setRecordingDurationMs(0);
+    setPhase('idle');
+    await releaseAudioRecorderSession(audioRecorder);
     await startRecording();
   }
 
@@ -221,10 +263,13 @@ export function VoiceCaptureSheet() {
 
   function handleClose() {
     stopRecordingTimer();
-    if (recorderState.isRecording) {
-      audioRecorder.stop().catch(() => {});
-    }
+    isStartingRef.current = false;
+    sawRecordingThisSessionRef.current = false;
+    void releaseAudioRecorderSession(audioRecorder);
     if (playerStatus.playing) player.pause();
+    setSavedUri(null);
+    setRecordingDurationMs(0);
+    setPhase('idle');
     closeCapture();
   }
 
@@ -338,15 +383,6 @@ export function VoiceCaptureSheet() {
               <View className="flex-row items-center gap-3 pt-1">
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Enviar"
-                  onPress={handleSendFromReview}
-                  className="min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-brand active:opacity-85 dark:bg-brand-dark">
-                  <Ionicons name="paper-plane-outline" size={22} color="#FFFFFF" />
-                  <Text className="text-sm font-semibold text-white">Enviar</Text>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
                   accessibilityLabel="Grabar de nuevo"
                   onPress={handleRecordAgain}
                   className="min-h-[52px] flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 active:opacity-80 dark:border-border-dark dark:bg-surface-dark">
@@ -354,6 +390,15 @@ export function VoiceCaptureSheet() {
                   <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
                     Repetir
                   </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Enviar"
+                  onPress={handleSendFromReview}
+                  className="min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-brand active:opacity-85 dark:bg-brand-dark">
+                  <Ionicons name="paper-plane-outline" size={22} color="#FFFFFF" />
+                  <Text className="text-sm font-semibold text-white">Enviar</Text>
                 </Pressable>
               </View>
             </View>

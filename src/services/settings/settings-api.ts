@@ -1,6 +1,8 @@
 import { apiRequest } from '@/services/api/api-client';
 import type { ApiDataResponse } from '@/types/api';
 
+import type { ReminderAlertStyle } from '@/services/reminders/reminder-alert-style';
+
 export type AppLanguage = 'es' | 'en';
 export type AppPlan = 'free' | 'pro';
 
@@ -9,6 +11,7 @@ export type UserSettings = {
   language: AppLanguage;
   push_notifications: boolean;
   reminder_notifications: boolean;
+  reminder_alert_style: ReminderAlertStyle;
   auto_send_audio: boolean;
   /** biometric_lock is stored locally on device, not synced to backend */
   biometric_lock?: boolean;

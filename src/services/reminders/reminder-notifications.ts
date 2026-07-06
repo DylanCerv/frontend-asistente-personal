@@ -2,10 +2,21 @@ import { isRunningInExpoGo } from 'expo';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
-import { buildReminderSchedule } from '@/services/reminders/reminder-rules';
+import {
+  buildVibrationPattern,
+  parseReminderAlertStyle,
+  shouldPlaySound,
+  shouldVibrate,
+  type ReminderAlertStyle,
+} from '@/services/reminders/reminder-alert-style';
+import {
+  buildReminderSchedule,
+  type ReminderAlertLevel,
+} from '@/services/reminders/reminder-rules';
 import type { MemoryRecord } from '@/types/record';
 
-const ANDROID_CHANNEL_ID = 'asistente-reminders';
+const ANDROID_ALARM_CHANNEL_ID = 'kivo-alarms';
+const ANDROID_NOTIFICATION_CHANNEL_ID = 'kivo-reminders';
 const REMINDER_ID_PREFIXES = ['asistente-reminder-', 'kivo-exact-'] as const;
 
 type NotificationsModule = typeof import('expo-notifications');
@@ -24,13 +35,22 @@ async function getNotificationsModule(): Promise<NotificationsModule | null> {
     notificationsModulePromise = import('expo-notifications').then((Notifications) => {
       if (!notificationHandlerConfigured) {
         Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: false,
-            shouldShowBanner: true,
-            shouldShowList: true,
-          }),
+          handleNotification: async (notification) => {
+            const alertStyle = parseReminderAlertStyle(
+              notification.request.content.data?.alertStyle,
+            );
+            const alertLevel = notification.request.content.data?.alertLevel as
+              | ReminderAlertLevel
+              | undefined;
+
+            return {
+              shouldShowAlert: true,
+              shouldPlaySound: shouldPlaySound(alertStyle, alertLevel ?? 'notification'),
+              shouldSetBadge: false,
+              shouldShowBanner: true,
+              shouldShowList: true,
+            };
+          },
         });
         notificationHandlerConfigured = true;
       }
@@ -42,26 +62,103 @@ async function getNotificationsModule(): Promise<NotificationsModule | null> {
   return notificationsModulePromise;
 }
 
-export async function ensureNotificationPermissions(): Promise<boolean> {
+export async function checkNotificationPermissions(): Promise<boolean> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) return false;
+
+  const current = await Notifications.getPermissionsAsync();
+  return current.granted ?? false;
+}
+
+export async function requestNotificationPermissions(): Promise<boolean> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) return false;
 
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
 
-  const requested = await Notifications.requestPermissionsAsync();
+  const requested = await Notifications.requestPermissionsAsync({
+    ios: {
+      allowAlert: true,
+      allowBadge: false,
+      allowSound: true,
+    },
+  });
   return requested.granted ?? false;
 }
 
-async function ensureAndroidChannel(Notifications: NotificationsModule): Promise<void> {
+/** @deprecated Use requestNotificationPermissions */
+export async function ensureNotificationPermissions(): Promise<boolean> {
+  return requestNotificationPermissions();
+}
+
+async function ensureAndroidChannels(
+  Notifications: NotificationsModule,
+  alertStyle: ReminderAlertStyle,
+): Promise<void> {
   if (Platform.OS !== 'android') return;
 
-  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-    name: 'Recordatorios',
+  const useSound = alertStyle !== 'vibration';
+  const useVibration = shouldVibrate(alertStyle);
+
+  await Notifications.setNotificationChannelAsync(ANDROID_ALARM_CHANNEL_ID, {
+    name: 'Alertas con sonido',
     importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 250, 250, 250],
+    vibrationPattern: useVibration ? buildVibrationPattern(true) : undefined,
     lightColor: '#7C3AED',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: useSound ? 'default' : undefined,
   });
+
+  await Notifications.setNotificationChannelAsync(ANDROID_NOTIFICATION_CHANNEL_ID, {
+    name: 'Recordatorios del día',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: useVibration ? buildVibrationPattern(false) : undefined,
+    lightColor: '#7C3AED',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: useSound ? 'default' : undefined,
+  });
+}
+
+function resolveAndroidChannelId(alertLevel: ReminderAlertLevel): string {
+  return alertLevel === 'alarm' ? ANDROID_ALARM_CHANNEL_ID : ANDROID_NOTIFICATION_CHANNEL_ID;
+}
+
+function buildNotificationContent(
+  Notifications: NotificationsModule,
+  item: {
+    title: string;
+    body: string;
+    recordId: string;
+    alertLevel: ReminderAlertLevel;
+    id: string;
+  },
+  alertStyle: ReminderAlertStyle,
+) {
+  const isAlarm = item.alertLevel === 'alarm';
+  const playSound = shouldPlaySound(alertStyle, item.alertLevel);
+  const vibrate = shouldVibrate(alertStyle);
+
+  return {
+    title: item.title,
+    body: item.body,
+    sound: playSound ? 'default' : undefined,
+    vibrate: vibrate ? buildVibrationPattern(isAlarm) : undefined,
+    data: {
+      recordId: item.recordId,
+      alertLevel: item.alertLevel,
+      alertStyle,
+      kind: item.id.startsWith('kivo-exact-') ? 'exact' : 'offset',
+    },
+    ...(Platform.OS === 'android'
+      ? {
+          channelId: resolveAndroidChannelId(item.alertLevel),
+          priority: isAlarm
+            ? Notifications.AndroidNotificationPriority.HIGH
+            : Notifications.AndroidNotificationPriority.DEFAULT,
+        }
+      : {}),
+  };
 }
 
 export async function cancelAppReminders(): Promise<void> {
@@ -80,8 +177,8 @@ export async function cancelAppReminders(): Promise<void> {
 
 export async function syncReminderNotifications(
   records: MemoryRecord[],
-  /** When false, cancels all pending reminders */
   enabled = true,
+  alertStyle: ReminderAlertStyle = 'both',
 ): Promise<void> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) return;
@@ -90,10 +187,10 @@ export async function syncReminderNotifications(
 
   if (!enabled) return;
 
-  const granted = await ensureNotificationPermissions();
+  const granted = await checkNotificationPermissions();
   if (!granted) return;
 
-  await ensureAndroidChannel(Notifications);
+  await ensureAndroidChannels(Notifications, alertStyle);
 
   const schedule = buildReminderSchedule(records);
 
@@ -101,12 +198,7 @@ export async function syncReminderNotifications(
     schedule.map((item) =>
       Notifications.scheduleNotificationAsync({
         identifier: item.id,
-        content: {
-          title: item.title,
-          body: item.body,
-          data: { recordId: item.recordId, kind: item.id.startsWith('kivo-exact-') ? 'exact' : 'offset' },
-          ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
-        },
+        content: buildNotificationContent(Notifications, item, alertStyle),
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: item.triggerAt,
@@ -114,9 +206,4 @@ export async function syncReminderNotifications(
       }),
     ),
   );
-}
-
-/** Always schedules reminders regardless of user toggle (for overdue/urgent tasks) */
-export async function forceReminderSync(records: MemoryRecord[]): Promise<void> {
-  return syncReminderNotifications(records, true);
 }

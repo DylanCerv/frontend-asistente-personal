@@ -1,12 +1,15 @@
 import type { Priority } from '@/types/assistant';
 import type { MemoryRecord } from '@/types/record';
 
+export type ReminderAlertLevel = 'alarm' | 'notification';
+
 export type ReminderScheduleItem = {
   id: string;
   recordId: string;
   triggerAt: Date;
   title: string;
   body: string;
+  alertLevel: ReminderAlertLevel;
 };
 
 const DAY_OFFSETS_BY_PRIORITY: Record<Priority, number[]> = {
@@ -18,6 +21,38 @@ const DAY_OFFSETS_BY_PRIORITY: Record<Priority, number[]> = {
 const EXACT_ALERT_ID_PREFIX = 'kivo-exact-';
 const OFFSET_ALERT_ID_PREFIX = 'asistente-reminder-';
 
+/** Soft day reminders fire at this local time (early risers plan their day from here). */
+export const SOFT_DAY_NOTIFICATION_HOUR = 5;
+export const SOFT_DAY_NOTIFICATION_MINUTE = 0;
+
+/** Backend default times when the user did not mention a specific clock time. */
+const IMPLICIT_DAY_TIMES = [
+  { hour: 9, minute: 0 },
+  { hour: SOFT_DAY_NOTIFICATION_HOUR, minute: SOFT_DAY_NOTIFICATION_MINUTE },
+  { hour: 0, minute: 0 },
+];
+
+function isImplicitDayTime(date: Date): boolean {
+  return IMPLICIT_DAY_TIMES.some(
+    (slot) =>
+      date.getHours() === slot.hour &&
+      date.getMinutes() === slot.minute &&
+      date.getSeconds() === 0,
+  );
+}
+
+function softDayNotificationTime(date: Date): Date {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    SOFT_DAY_NOTIFICATION_HOUR,
+    SOFT_DAY_NOTIFICATION_MINUTE,
+    0,
+    0,
+  );
+}
+
 /** ISO date-only (YYYY-MM-DD) has no explicit clock time. */
 export function hasExplicitTime(record: MemoryRecord): boolean {
   const iso = record.dueAtIso?.trim();
@@ -27,6 +62,7 @@ export function hasExplicitTime(record: MemoryRecord): boolean {
     if (iso.includes('T')) {
       const parsed = new Date(iso);
       if (!Number.isNaN(parsed.getTime())) {
+        if (isImplicitDayTime(parsed)) return false;
         return parsed.getHours() !== 0 || parsed.getMinutes() !== 0 || parsed.getSeconds() !== 0;
       }
     }
@@ -46,7 +82,15 @@ function parseDueDate(record: MemoryRecord): Date | null {
   const [year, month, day] = record.scheduledAt.split('-').map(Number);
   if (!year || !month || !day) return null;
 
-  const due = new Date(year, month - 1, day, 9, 0, 0, 0);
+  const due = new Date(
+    year,
+    month - 1,
+    day,
+    SOFT_DAY_NOTIFICATION_HOUR,
+    SOFT_DAY_NOTIFICATION_MINUTE,
+    0,
+    0,
+  );
   return Number.isNaN(due.getTime()) ? null : due;
 }
 
@@ -69,12 +113,12 @@ function formatExactTimeLabel(date: Date): string {
 function buildExactTimeMessage(record: MemoryRecord, triggerAt: Date): string {
   const timeLabel = formatExactTimeLabel(triggerAt);
   if (record.type === 'meeting') return `Reunión a las ${timeLabel}`;
-  if (record.type === 'reminder') return `Recordatorio a las ${timeLabel}`;
-  return `Pendiente a las ${timeLabel}`;
+  if (record.type === 'reminder') return `¡Es la hora! ${record.title}`;
+  return `Pendiente a las ${timeLabel}: ${record.title}`;
 }
 
 function startOfLocalDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0, 0, 0);
+  return softDayNotificationTime(date);
 }
 
 function subtractDays(date: Date, days: number): Date {
@@ -86,8 +130,9 @@ function subtractDays(date: Date, days: number): Date {
 function buildDayMessage(record: MemoryRecord, daysBefore: number): string {
   if (daysBefore === 7) return `Faltan 7 días: ${record.title}`;
   if (daysBefore === 3) return `Faltan 3 días: ${record.title}`;
-  if (daysBefore === 1) return `Mañana vence: ${record.title}`;
-  return `Vence hoy: ${record.title}`;
+  if (daysBefore === 1) return `Mañana: ${record.title}`;
+  if (record.type === 'reminder') return `Hoy: ${record.title}`;
+  return `Hoy vence: ${record.title}`;
 }
 
 function isSchedulableRecord(record: MemoryRecord): boolean {
@@ -117,17 +162,19 @@ function buildOffsetReminders(
       triggerAt,
       title: 'Kivo',
       body: buildDayMessage(record, daysBefore),
+      alertLevel: 'notification',
     });
   }
 
   const oneHourBefore = new Date(dueDate.getTime() - 60 * 60 * 1000);
-  if (oneHourBefore.getTime() > now && priority !== 'low') {
+  if (oneHourBefore.getTime() > now && priority !== 'low' && hasExplicitTime(record)) {
     items.push({
       id: `${OFFSET_ALERT_ID_PREFIX}${record.id}-h1`,
       recordId: record.id,
       triggerAt: oneHourBefore,
       title: 'Kivo',
-      body: `Vence en 1 hora: ${record.title}`,
+      body: `En 1 hora: ${record.title}`,
+      alertLevel: 'notification',
     });
   }
 
@@ -144,6 +191,7 @@ function buildExactTimeReminder(record: MemoryRecord, now: number): ReminderSche
     triggerAt,
     title: record.title,
     body: buildExactTimeMessage(record, triggerAt),
+    alertLevel: 'alarm',
   };
 }
 
