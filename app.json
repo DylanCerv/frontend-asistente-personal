@@ -12,10 +12,13 @@
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.kivo.app",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.kivo.app.widget"]
+        "com.apple.security.application-groups": [
+          "group.com.kivo.app.widget"
+        ]
       }
     },
     "android": {
+      "package": "com.kivo.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

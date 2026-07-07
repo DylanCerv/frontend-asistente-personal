@@ -23,6 +23,9 @@ module.exports = () => ({
     extra: {
       apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api',
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
+      eas: {
+        projectId: '9a1fe58e-ec49-48bd-971f-68cbaa359cb4',
+      },
     },
     plugins: [
       ...(appJson.expo.plugins ?? []),
