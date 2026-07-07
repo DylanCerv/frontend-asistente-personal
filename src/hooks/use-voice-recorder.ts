@@ -1,62 +1,65 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Audio } from 'expo-av';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
+import { useCallback, useEffect, useState } from 'react';
 
 type RecorderState = 'idle' | 'recording' | 'recorded';
 
 export function useVoiceRecorder() {
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [state, setState] = useState<RecorderState>('idle');
   const [uri, setUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
-      void recordingRef.current?.stopAndUnloadAsync();
+      if (recorder.getStatus().isRecording) {
+        void recorder.stop();
+      }
     };
-  }, []);
+  }, [recorder]);
 
   const reset = useCallback(() => {
     setUri(null);
     setError(null);
     setState('idle');
-    recordingRef.current = null;
   }, []);
 
   const startRecording = useCallback(async () => {
     try {
       setError(null);
 
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
         throw new Error('Se necesita permiso de micrófono para grabar');
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
+      const status = recorder.getStatus();
+      if (!status.canRecord) {
+        await recorder.prepareToRecordAsync();
+      }
 
-      recordingRef.current = recording;
+      recorder.record();
       setUri(null);
       setState('recording');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar la grabación');
       setState('idle');
     }
-  }, []);
+  }, [recorder]);
 
   const stopRecording = useCallback(async () => {
     try {
-      const recording = recordingRef.current;
-      if (!recording) return;
-
-      await recording.stopAndUnloadAsync();
-      const recordedUri = recording.getURI();
-      recordingRef.current = null;
+      await recorder.stop();
+      const recordedUri = recorder.uri;
 
       if (!recordedUri) {
         throw new Error('No se pudo guardar la grabación');
@@ -68,7 +71,7 @@ export function useVoiceRecorder() {
       setError(err instanceof Error ? err.message : 'No se pudo detener la grabación');
       setState('idle');
     }
-  }, []);
+  }, [recorder]);
 
   return {
     state,

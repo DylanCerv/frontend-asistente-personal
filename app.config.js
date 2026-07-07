@@ -34,13 +34,6 @@ module.exports = () => ({
       'expo-asset',
       'expo-apple-authentication',
       [
-        'expo-av',
-        {
-          microphonePermission:
-            'Permite grabar notas de voz para que Kivo las procese.',
-        },
-      ],
-      [
         'expo-notifications',
         {
           icon: './assets/images/icon.png',
