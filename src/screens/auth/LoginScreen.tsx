@@ -10,22 +10,17 @@ import { LoginEmailForm } from '@/components/auth/login-email-form';
 type LoginScreenProps = {
   onSignIn?: (credentials: { email: string; password: string }) => void;
   onGoogleSignIn?: () => void;
-  onAppleSignIn?: () => void;
   onRegister?: () => void;
   onBackFromEmailForm?: () => void;
   loading?: boolean;
-  socialLoadingProvider?: 'google' | 'apple' | null;
   error?: string;
 };
 
 export function LoginScreen({
   onSignIn,
-  onGoogleSignIn,
-  onAppleSignIn,
   onRegister,
   onBackFromEmailForm,
   loading = false,
-  socialLoadingProvider = null,
   error,
 }: LoginScreenProps) {
   const [email, setEmail] = useState('');
@@ -73,11 +68,8 @@ export function LoginScreen({
 
           <AuthOptionsSection
             emailButtonLabel="Continuar con tu correo"
-            onGooglePress={onGoogleSignIn}
-            onApplePress={onAppleSignIn}
             onEmailPress={() => setShowEmailForm(true)}
             loading={loading}
-            loadingProvider={socialLoadingProvider}
             error={error}
           />
 

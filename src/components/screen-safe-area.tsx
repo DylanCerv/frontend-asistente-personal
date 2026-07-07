@@ -1,9 +1,5 @@
 import type { ReactNode } from 'react';
-import { Platform } from 'react-native';
 import { SafeAreaView, type Edge, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-/** Fallback when Android edge-to-edge reports 0 for the navigation bar inset. */
-const ANDROID_NAV_BAR_FALLBACK = 48;
 
 type ScreenSafeAreaProps = {
   children: ReactNode;
@@ -29,7 +25,7 @@ export function ScreenSafeArea({
 export function getComposerBottomPadding(bottomInset: number, keyboardHeight = 0): number {
   if (keyboardHeight > 0) return 8;
   if (bottomInset > 0) return bottomInset;
-  return Platform.OS === 'android' ? ANDROID_NAV_BAR_FALLBACK : 8;
+  return 8;
 }
 
 /** Bottom padding for fixed footers (chat bar, action buttons, etc.). */

@@ -233,7 +233,7 @@ export default function HomeScreen() {
 
           <KeyboardAvoidingView
             className="min-h-0 flex-1"
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}>
             {chatSection}
           </KeyboardAvoidingView>
