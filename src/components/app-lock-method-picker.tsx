@@ -34,8 +34,7 @@ export function AppLockMethodPicker({
   }, []);
 
   const biometricLabel = capability?.label ?? 'Biometría';
-  const biometricIcon =
-    biometricLabel === 'Face ID' ? ('scan-outline' as const) : ('finger-print-outline' as const);
+  const biometricIcon = capability?.icon ?? 'finger-print-outline';
 
   const options: LockOption[] = [];
 

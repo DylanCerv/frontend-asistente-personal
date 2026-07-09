@@ -1,9 +1,26 @@
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { Text, View } from 'react-native';
 
 import { DetailRow } from '@/components/expandable-item-card';
+import { getCategoryIcon } from '@/constants/categories';
 import { PRIORITY_LABELS } from '@/constants/labels';
 import type { CalendarEvent, TaskItem } from '@/types/assistant';
 import { formatLongDate } from '@/utils/date-utils';
+
+function CategoryDetailRow({ category }: { category: string }) {
+  return (
+    <View className="flex-row items-start gap-3">
+      <Ionicons name="folder-outline" size={16} color="#7C3AED" style={{ marginTop: 2 }} />
+      <View className="flex-1 gap-1.5">
+        <Text className="text-xs text-subtle dark:text-subtle-dark">Categoría</Text>
+        <View className="flex-row items-center gap-2 self-start rounded-xl border border-brand/20 bg-surface-soft px-3 py-1.5 dark:border-brand-dark/20 dark:bg-surface-soft-dark">
+          <Ionicons name={getCategoryIcon(category) as never} size={14} color="#7C3AED" />
+          <Text className="text-sm font-semibold text-brand dark:text-brand-dark">{category}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export function TaskDetailsContent({ task }: { task: TaskItem }) {
   return (
@@ -16,7 +33,7 @@ export function TaskDetailsContent({ task }: { task: TaskItem }) {
         value={task.dueLabel ?? formatLongDate(task.scheduledAt)}
         icon="calendar-outline"
       />
-      <DetailRow label="Categoría" value={task.category} icon="folder-outline" />
+      <CategoryDetailRow category={task.category} />
       <DetailRow
         label="Prioridad"
         value={PRIORITY_LABELS[task.priority]}
@@ -59,20 +76,24 @@ export function TaskDetailsContent({ task }: { task: TaskItem }) {
 }
 
 export function EventDetailsContent({ event }: { event: CalendarEvent }) {
-  const typeLabels = {
-    meeting: 'Reunión',
-    event: 'Evento',
-    reminder: 'Recordatorio',
-  };
+  const isReminder = event.type === 'reminder';
+  const isMeeting = event.type === 'meeting';
+  const showDetails = (isReminder || isMeeting) && event.description;
 
   return (
     <View className="gap-3">
       <DetailRow label="Fecha" value={formatLongDate(event.scheduledAt)} icon="calendar-outline" />
       <DetailRow label="Hora" value={event.time} icon="time-outline" />
+      {!isReminder && !isMeeting ? (
+        <DetailRow label="Tipo" value="Evento" icon="bookmark-outline" />
+      ) : null}
+      {showDetails ? (
+        <DetailRow label="Detalles" value={event.description!} icon="document-text-outline" />
+      ) : null}
       <DetailRow
-        label="Tipo"
-        value={typeLabels[event.type]}
-        icon="bookmark-outline"
+        label="Estado"
+        value={event.status === 'completed' ? 'Completado' : 'Pendiente'}
+        icon="checkbox-outline"
       />
       {event.location ? (
         <DetailRow label="Ubicación" value={event.location} icon="location-outline" />

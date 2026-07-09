@@ -3,6 +3,7 @@ import {
   addDays,
   endOfMonth,
   isDateInRange,
+  isDateSelected,
   startOfMonth,
   todayIso,
   type DateRange,
@@ -49,11 +50,31 @@ export function getFinanceRecordsInRange(
   );
 }
 
+export function getFinanceRecordsOnDates(
+  records: MemoryRecord[],
+  selectedDates: string[],
+): MemoryRecord[] {
+  if (selectedDates.length === 0) return [];
+  return getFinanceRecords(records).filter((record) =>
+    isDateSelected(getRecordDate(record), selectedDates),
+  );
+}
+
 export function buildFinanceSummary(
   records: MemoryRecord[],
   range: DateRange,
 ): FinanceSummary {
-  const financeRecords = getFinanceRecordsInRange(records, range);
+  return buildFinanceSummaryFromRecords(getFinanceRecordsInRange(records, range));
+}
+
+export function buildFinanceSummaryOnDates(
+  records: MemoryRecord[],
+  selectedDates: string[],
+): FinanceSummary {
+  return buildFinanceSummaryFromRecords(getFinanceRecordsOnDates(records, selectedDates));
+}
+
+function buildFinanceSummaryFromRecords(financeRecords: MemoryRecord[]): FinanceSummary {
 
   let income = 0;
   let expense = 0;

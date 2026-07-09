@@ -183,6 +183,34 @@ export function isTomorrow(iso: string): boolean {
   return iso === daysFromNowIso(1);
 }
 
+export function formatSelectedDatesLabel(dates: string[]): string {
+  if (dates.length === 0) return 'Sin fechas seleccionadas';
+
+  const sorted = [...dates].sort();
+  if (sorted.length === 1) return formatLongDate(sorted[0]);
+
+  const isContiguous = sorted.every(
+    (date, index) => index === 0 || date === addDays(sorted[index - 1], 1),
+  );
+  if (isContiguous) {
+    return formatRangeLabel({ start: sorted[0], end: sorted[sorted.length - 1] });
+  }
+
+  if (sorted.length <= 3) {
+    return sorted.map(formatShortDate).join(' · ');
+  }
+
+  return `${sorted.length} días seleccionados`;
+}
+
+export function mergeSelectedDates(current: string[], next: string[]): string[] {
+  return Array.from(new Set([...current, ...next])).sort();
+}
+
+export function isDateSelected(date: string, selectedDates: string[]): boolean {
+  return selectedDates.includes(date);
+}
+
 export function relativeDayLabel(iso: string): string {
   if (isToday(iso)) return 'Hoy';
   if (isTomorrow(iso)) return 'Mañana';

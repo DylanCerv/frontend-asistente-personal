@@ -3,24 +3,31 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
-import { DateRangePicker, useDateRangeState } from '@/components/date-range-picker';
+import {
+  AgendaCalendar,
+  CalendarBulkActions,
+  useAgendaCalendarState,
+  type VisibleMonth,
+} from '@/components/agenda-calendar';
+import { ScreenAccentBar } from '@/components/screen-accent-bar';
 import { ScreenHeader } from '@/components/screen-header';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 import { PRIORITY_LABELS } from '@/constants/labels';
+import { useScreenAccent } from '@/constants/screen-themes';
 import { useAssistant } from '@/context/assistant-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import { useAuth } from '@/context/auth-context';
-import { buildProgressReport } from '@/services/progress-report';
+import { buildProgressReportOnDates } from '@/services/progress-report';
 import { buildProgressReportHtml, sharePdfReport } from '@/services/report-export';
-import { filterTasksByRange } from '@/utils/agenda-utils';
-import { formatLongDate, formatRangeLabel, isDateInRange } from '@/utils/date-utils';
+import { filterTasksByDates } from '@/utils/agenda-utils';
+import { formatLongDate, formatSelectedDatesLabel, isDateSelected, todayIso } from '@/utils/date-utils';
 
-function ProgressBar({ percent }: { percent: number }) {
+function ProgressBar({ percent, color }: { percent: number; color: string }) {
   return (
     <View className="h-3 overflow-hidden rounded-full bg-muted dark:bg-muted-dark">
       <View
-        className="h-full rounded-full bg-brand dark:bg-brand-dark"
-        style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+        className="h-full rounded-full"
+        style={{ width: `${Math.min(100, Math.max(0, percent))}%`, backgroundColor: color }}
       />
     </View>
   );
@@ -51,20 +58,47 @@ export default function ReportScreen() {
   const { user } = useAuth();
   const { preferredName } = useUserPreferences();
   const { tasks, events, records, isRecordsLoading, refreshRecords } = useAssistant();
-  const { preset, range, onChange } = useDateRangeState('week');
+  const { selectedDates, onChange } = useAgendaCalendarState(todayIso());
+  const accent = useScreenAccent('report');
+  const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const periodLabel = useMemo(() => formatSelectedDatesLabel(selectedDates), [selectedDates]);
+
   const report = useMemo(
-    () => buildProgressReport(tasks, events, records, range),
-    [tasks, events, records, range],
+    () => buildProgressReportOnDates(tasks, events, records, selectedDates),
+    [tasks, events, records, selectedDates],
   );
 
-  const rangeTasks = useMemo(() => filterTasksByRange(tasks, range), [tasks, range]);
-  const rangeEvents = useMemo(
-    () => events.filter((event) => isDateInRange(event.scheduledAt, range)),
-    [events, range],
+  const rangeTasks = useMemo(
+    () => filterTasksByDates(tasks, selectedDates),
+    [tasks, selectedDates],
   );
+  const rangeEvents = useMemo(
+    () => events.filter((event) => isDateSelected(event.scheduledAt, selectedDates)),
+    [events, selectedDates],
+  );
+
+  const markedDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const task of tasks) {
+      if (task.scheduledAt) dates.add(task.scheduledAt);
+    }
+    for (const event of events) {
+      if (event.scheduledAt) dates.add(event.scheduledAt);
+    }
+    for (const record of records) {
+      if (record.type === 'expense' || record.type === 'income') {
+        const date = record.scheduledAt ?? record.createdAt?.slice(0, 10);
+        if (date) dates.add(date);
+      }
+    }
+    return Array.from(dates);
+  }, [tasks, events, records]);
 
   const displayName = preferredName.trim() || user?.name || 'Usuario';
   const statusLabel =
@@ -81,11 +115,11 @@ export default function ReportScreen() {
     try {
       const html = buildProgressReportHtml({
         displayName,
-        range,
+        periodLabel,
         tasks: rangeTasks,
         events: rangeEvents,
       });
-      await sharePdfReport(`Reporte ${formatRangeLabel(range)}`, html);
+      await sharePdfReport(`Reporte ${periodLabel}`, html);
     } finally {
       setIsExporting(false);
     }
@@ -102,25 +136,45 @@ export default function ReportScreen() {
 
   return (
     <ScreenSafeArea>
-      <ScreenHeader title="Reporte" subtitle="Tu avance real, en un vistazo" />
+      <ScreenHeader
+        title="Reporte"
+        subtitle={`${periodLabel} · ${report.progressPercent}% de avance`}
+        accent={accent}
+      />
+      <ScreenAccentBar accent={accent} />
       <ScrollView
         contentContainerClassName="w-full max-w-3xl gap-5 self-center px-6 pb-36 pt-2"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing || isRecordsLoading}
             onRefresh={handleRefresh}
-            tintColor="#7C3AED"
-            colors={['#7C3AED']}
+            tintColor={accent.main}
+            colors={[accent.main]}
           />
         }>
-        <DateRangePicker preset={preset} range={range} onChange={onChange} />
+        <AgendaCalendar
+          selectedDates={selectedDates}
+          markedDates={markedDates}
+          onChange={onChange}
+          onVisibleMonthChange={setVisibleMonth}
+          accent={accent}
+          footerContent={
+            <CalendarBulkActions
+              selectedDates={selectedDates}
+              visibleMonth={visibleMonth}
+              onChange={onChange}
+              accent={accent}
+            />
+          }
+        />
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Descargar reporte"
           onPress={handleDownload}
           disabled={isExporting}
-          className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-3.5 active:opacity-90 dark:bg-brand-dark">
+          className="flex-row items-center justify-center gap-2 rounded-2xl px-4 py-3.5 active:opacity-90"
+          style={{ backgroundColor: accent.main }}>
           {isExporting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
@@ -131,10 +185,14 @@ export default function ReportScreen() {
           </Text>
         </Pressable>
 
-        <View className="gap-4 rounded-[28px] border border-border bg-surface p-5 dark:border-border-dark dark:bg-surface-dark">
+        <View
+          className="gap-4 rounded-[28px] border bg-surface p-5 dark:bg-surface-dark"
+          style={{ borderColor: accent.border }}>
           <View className="flex-row items-center gap-3">
-            <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface-soft dark:bg-surface-soft-dark">
-              <Ionicons name="stats-chart-outline" size={22} color="#7C3AED" />
+            <View
+              className="h-11 w-11 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: accent.soft }}>
+              <Ionicons name="stats-chart-outline" size={22} color={accent.main} />
             </View>
             <View className="flex-1 gap-0.5">
               <Text className="text-lg font-bold text-foreground dark:text-foreground-dark">
@@ -142,16 +200,15 @@ export default function ReportScreen() {
               </Text>
               <Text className="text-sm text-subtle dark:text-subtle-dark">{statusLabel}</Text>
             </View>
-            <Text className="text-3xl font-bold text-brand dark:text-brand-dark">
+            <Text className="text-3xl font-bold" style={{ color: accent.main }}>
               {report.progressPercent}%
             </Text>
           </View>
 
-          <ProgressBar percent={report.progressPercent} />
+          <ProgressBar percent={report.progressPercent} color={accent.main} />
 
           <Text className="text-sm leading-6 text-subtle dark:text-subtle-dark">
-            {report.completedTasks} de {report.totalTasks} tareas completadas en{' '}
-            {formatRangeLabel(range)}.
+            {report.completedTasks} de {report.totalTasks} tareas completadas en {periodLabel}.
             {report.pendingTasks > 0
               ? ` Te quedan ${report.pendingTasks} pendientes.`
               : ' No tienes pendientes por ahora.'}
@@ -192,7 +249,7 @@ export default function ReportScreen() {
             Pendientes por prioridad
           </Text>
           <PriorityRow label="Alta" count={report.highPriorityPending} tone="danger" />
-          <PriorityRow label="Media" count={report.mediumPriorityPending} tone="brand" />
+          <PriorityRow label="Media" count={report.mediumPriorityPending} tone="accent" accentColor={accent.main} />
           <PriorityRow label="Baja" count={report.lowPriorityPending} tone="subtle" />
         </View>
 
@@ -210,7 +267,7 @@ export default function ReportScreen() {
                   router.push({ pathname: '/agenda', params: { taskId: task.id } })
                 }
                 className="flex-row items-start gap-3 rounded-2xl bg-canvas px-3 py-3 active:opacity-85 dark:bg-canvas-dark">
-                <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
+                <Text className="text-sm font-semibold" style={{ color: accent.main }}>
                   {index + 1}.
                 </Text>
                 <View className="min-w-0 flex-1 gap-0.5">
@@ -228,7 +285,7 @@ export default function ReportScreen() {
           </View>
         ) : (
           <View className="items-center gap-2 rounded-[28px] border border-border bg-surface p-8 dark:border-border-dark dark:bg-surface-dark">
-            <Ionicons name="checkmark-circle-outline" size={32} color="#7C3AED" />
+            <Ionicons name="checkmark-circle-outline" size={32} color={accent.main} />
             <Text className="text-center text-base font-semibold text-foreground dark:text-foreground-dark">
               Sin pendientes
             </Text>
@@ -251,7 +308,7 @@ export default function ReportScreen() {
                   router.push({ pathname: '/agenda', params: { taskId: task.id } })
                 }
                 className="flex-row items-center gap-3 rounded-2xl bg-canvas px-3 py-3 active:opacity-85 dark:bg-canvas-dark">
-                <Ionicons name="checkmark-circle" size={18} color="#7C3AED" />
+                <Ionicons name="checkmark-circle" size={18} color={accent.main} />
                 <Text className="flex-1 text-sm text-foreground dark:text-foreground-dark">
                   {task.title}
                 </Text>
@@ -269,13 +326,15 @@ function PriorityRow({
   label,
   count,
   tone,
+  accentColor,
 }: {
   label: string;
   count: number;
-  tone: 'danger' | 'brand' | 'subtle';
+  tone: 'danger' | 'accent' | 'subtle';
+  accentColor?: string;
 }) {
   const color =
-    tone === 'danger' ? '#DC2626' : tone === 'brand' ? '#7C3AED' : '#6B6475';
+    tone === 'danger' ? '#DC2626' : tone === 'accent' ? (accentColor ?? '#0369A1') : '#6B6475';
 
   return (
     <View className="flex-row items-center justify-between rounded-2xl bg-canvas px-4 py-3 dark:bg-canvas-dark">

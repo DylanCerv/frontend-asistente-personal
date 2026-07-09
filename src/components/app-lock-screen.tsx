@@ -14,7 +14,8 @@ import { startPinRecoverySession } from '@/services/app-lock/pin-recovery';
 type PinUnlockMode = 'enter' | 'recovery';
 
 export function AppLockScreen() {
-  const { biometricLabel, isCheckingBiometric, tryBiometricUnlock, tryPinUnlock } = useAppLock();
+  const { biometricLabel, biometricIcon, isCheckingBiometric, tryBiometricUnlock, tryPinUnlock } =
+    useAppLock();
   const { appLockMethod } = useUserPreferences();
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function AppLockScreen() {
             accessibilityRole="button"
             onPress={() => void tryBiometricUnlock()}
             className="min-h-[52px] min-w-[220px] flex-row items-center justify-center gap-2 rounded-2xl bg-brand px-6 active:opacity-85 dark:bg-brand-dark">
-            <Ionicons name="finger-print-outline" size={20} color="#FFFFFF" />
+            <Ionicons name={biometricIcon} size={20} color="#FFFFFF" />
             <Text className="text-base font-semibold text-white">
               Desbloquear con {biometricLabel}
             </Text>

@@ -14,6 +14,7 @@ import { useUserPreferences } from '@/context/user-preferences-context';
 import {
   authenticateWithBiometric,
   getBiometricCapability,
+  type BiometricIconName,
 } from '@/services/app-lock/biometric';
 import { hasPinConfigured, verifyPin } from '@/services/app-lock/pin-store';
 import { consumeSkipAppLockOnce } from '@/services/app-lock/session';
@@ -22,6 +23,7 @@ type AppLockContextValue = {
   isLocked: boolean;
   isCheckingBiometric: boolean;
   biometricLabel: string;
+  biometricIcon: BiometricIconName;
   canUseBiometric: boolean;
   canUsePin: boolean;
   unlockSession: () => void;
@@ -45,6 +47,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [isLocked, setIsLocked] = useState(false);
   const [isCheckingBiometric, setIsCheckingBiometric] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometría');
+  const [biometricIcon, setBiometricIcon] = useState<BiometricIconName>('finger-print-outline');
   const [canUseBiometric, setCanUseBiometric] = useState(false);
   const [canUsePin, setCanUsePin] = useState(false);
   const skipNextLockRef = useRef(false);
@@ -60,6 +63,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       hasPinConfigured(),
     ]);
     setBiometricLabel(capability.label);
+    setBiometricIcon(capability.icon);
     setCanUseBiometric(capability.isAvailable);
     setCanUsePin(pinConfigured);
   }, []);
@@ -67,6 +71,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshCapabilities();
   }, [refreshCapabilities, appLockMethod]);
+
+  useEffect(() => {
+    if (isLockActive && isLocked) {
+      void refreshCapabilities();
+    }
+  }, [isLockActive, isLocked, refreshCapabilities]);
 
   const unlockSession = useCallback(() => {
     setIsLocked(false);
@@ -165,7 +175,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
 
     setIsCheckingBiometric(true);
     try {
-      const success = await authenticateWithBiometric('Desbloquea Kivo');
+      const capability = await getBiometricCapability();
+      const success = await authenticateWithBiometric(`Desbloquea Kivo con ${capability.label}`);
       if (success) {
         unlockSession();
       }
@@ -191,6 +202,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       isLocked: isLockActive && isLocked,
       isCheckingBiometric,
       biometricLabel,
+      biometricIcon,
       canUseBiometric: canUseBiometric || appLockMethod === 'biometric',
       canUsePin,
       unlockSession,
@@ -204,6 +216,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       isLocked,
       isCheckingBiometric,
       biometricLabel,
+      biometricIcon,
       canUseBiometric,
       appLockMethod,
       canUsePin,

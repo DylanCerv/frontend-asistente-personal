@@ -6,7 +6,7 @@ import { showAppAlert } from '@/services/app-dialog';
 import { formatMoney } from '@/services/finance-analytics';
 import type { CalendarEvent, TaskItem } from '@/types/assistant';
 import type { MemoryRecord } from '@/types/record';
-import { formatLongDate, formatRangeLabel, type DateRange } from '@/utils/date-utils';
+import { formatLongDate } from '@/utils/date-utils';
 import { PRIORITY_LABELS } from '@/constants/labels';
 
 function escapeHtml(value: string): string {
@@ -70,7 +70,7 @@ export async function sharePdfReport(title: string, html: string): Promise<void>
 
 export function buildProgressReportHtml(input: {
   displayName: string;
-  range: DateRange;
+  periodLabel: string;
   tasks: TaskItem[];
   events: CalendarEvent[];
 }): string {
@@ -118,7 +118,7 @@ export function buildProgressReportHtml(input: {
 
   const body = `
     <h1>Reporte de avance</h1>
-    <p class="meta">${escapeHtml(input.displayName)} · ${escapeHtml(formatRangeLabel(input.range))}</p>
+    <p class="meta">${escapeHtml(input.displayName)} · ${escapeHtml(input.periodLabel)}</p>
     <div class="stat"><span class="muted">Avance</span><strong>${progress}%</strong></div>
     <div class="stat"><span class="muted">Completadas</span><strong>${completed.length}</strong></div>
     <div class="stat"><span class="muted">Pendientes</span><strong>${pending.length}</strong></div>
@@ -136,7 +136,7 @@ export function buildProgressReportHtml(input: {
 
 export function buildFinanceReportHtml(input: {
   displayName: string;
-  range: DateRange;
+  periodLabel: string;
   records: MemoryRecord[];
   income: number;
   expense: number;
@@ -168,7 +168,7 @@ export function buildFinanceReportHtml(input: {
 
   const body = `
     <h1>Reporte financiero</h1>
-    <p class="meta">${escapeHtml(input.displayName)} · ${escapeHtml(formatRangeLabel(input.range))}</p>
+    <p class="meta">${escapeHtml(input.displayName)} · ${escapeHtml(input.periodLabel)}</p>
     <div class="stat"><span class="muted">Ingresos</span><strong class="income">${escapeHtml(formatMoney(input.income, input.currency))}</strong></div>
     <div class="stat"><span class="muted">Gastos</span><strong class="expense">${escapeHtml(formatMoney(input.expense, input.currency))}</strong></div>
     <div class="stat"><span class="muted">Balance</span><strong>${escapeHtml(formatMoney(input.balance, input.currency))}</strong></div>

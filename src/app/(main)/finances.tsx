@@ -3,39 +3,56 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
-import { DateRangePicker, useDateRangeState } from '@/components/date-range-picker';
+import { AgendaCalendar, CalendarBulkActions, useAgendaCalendarState, type VisibleMonth } from '@/components/agenda-calendar';
+import { ScreenAccentBar } from '@/components/screen-accent-bar';
 import { ExpandableItemCard, DetailRow } from '@/components/expandable-item-card';
 import { ScreenHeader } from '@/components/screen-header';
+import { useScreenAccent } from '@/constants/screen-themes';
 import { useAssistant } from '@/context/assistant-context';
 import { useAuth } from '@/context/auth-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import {
-  buildFinanceSummary,
+  buildFinanceSummaryOnDates,
   formatMoney,
-  getFinanceRecordsInRange,
+  getFinanceRecordsOnDates,
 } from '@/services/finance-analytics';
 import { buildFinanceReportHtml, sharePdfReport } from '@/services/report-export';
 import type { MemoryRecord } from '@/types/record';
-import { formatLongDate, formatRangeLabel } from '@/utils/date-utils';
+import {
+  formatLongDate,
+  formatSelectedDatesLabel,
+  todayIso,
+} from '@/utils/date-utils';
 
 function FinanceSummaryCard({
   label,
   value,
   tone,
+  accentColor,
 }: {
   label: string;
   value: string;
   tone: 'income' | 'expense' | 'balance';
+  accentColor?: string;
 }) {
-  const toneClass =
+  const toneStyle =
     tone === 'income'
-      ? 'border-brand/30 bg-surface-soft'
+      ? { borderColor: accentColor ?? '#CA8A04', backgroundColor: 'rgba(202, 138, 4, 0.08)' }
       : tone === 'expense'
-        ? 'border-danger/20 bg-danger/5'
-        : 'border-border bg-surface';
+        ? undefined
+        : undefined;
+
+  const toneClass =
+    tone === 'expense'
+      ? 'border-danger/20 bg-danger/5'
+      : tone === 'balance'
+        ? 'border-border bg-surface'
+        : '';
 
   return (
-    <View className={`flex-1 gap-1 rounded-2xl border p-4 dark:bg-surface-dark ${toneClass}`}>
+    <View
+      className={`flex-1 gap-1 rounded-2xl border p-4 dark:bg-surface-dark ${toneClass}`}
+      style={toneStyle}>
       <Text className="text-xs font-semibold uppercase text-subtle dark:text-subtle-dark">
         {label}
       </Text>
@@ -44,7 +61,7 @@ function FinanceSummaryCard({
   );
 }
 
-function FinanceRecordCard({ record }: { record: MemoryRecord }) {
+function FinanceRecordCard({ record, accentColor }: { record: MemoryRecord; accentColor: string }) {
   const isIncome = record.type === 'income';
   const amount = typeof record.amount === 'number' ? record.amount : 0;
   const currency = record.currency ?? 'USD';
@@ -74,7 +91,7 @@ function FinanceRecordCard({ record }: { record: MemoryRecord }) {
           <Ionicons
             name={isIncome ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'}
             size={20}
-            color={isIncome ? '#7C3AED' : '#DC2626'}
+            color={isIncome ? accentColor : '#DC2626'}
           />
         </View>
         <View className="flex-1 gap-0.5">
@@ -87,9 +104,8 @@ function FinanceRecordCard({ record }: { record: MemoryRecord }) {
           </Text>
         </View>
         <Text
-          className={`text-base font-bold ${
-            isIncome ? 'text-brand dark:text-brand-dark' : 'text-danger dark:text-danger-dark'
-          }`}>
+          className={`text-base font-bold ${isIncome ? '' : 'text-danger dark:text-danger-dark'}`}
+          style={isIncome ? { color: accentColor } : undefined}>
           {isIncome ? '+' : '-'}
           {formatMoney(Math.abs(amount), currency)}
         </Text>
@@ -98,19 +114,43 @@ function FinanceRecordCard({ record }: { record: MemoryRecord }) {
   );
 }
 
+function getRecordDate(record: MemoryRecord): string {
+  return record.scheduledAt ?? record.createdAt?.slice(0, 10) ?? todayIso();
+}
+
 export default function FinancesScreen() {
   const { user } = useAuth();
   const { preferredName } = useUserPreferences();
   const { records, isRecordsLoading, recordsError, refreshRecords } = useAssistant();
-  const { preset, range, onChange } = useDateRangeState('month');
+  const { selectedDates, onChange } = useAgendaCalendarState(todayIso());
+  const accent = useScreenAccent('finances');
+  const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const summary = useMemo(() => buildFinanceSummary(records, range), [records, range]);
-  const financeRecords = useMemo(
-    () => getFinanceRecordsInRange(records, range),
-    [records, range],
+  const summary = useMemo(
+    () => buildFinanceSummaryOnDates(records, selectedDates),
+    [records, selectedDates],
   );
+  const financeRecords = useMemo(
+    () => getFinanceRecordsOnDates(records, selectedDates),
+    [records, selectedDates],
+  );
+
+  const markedDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const record of records) {
+      if (record.type === 'expense' || record.type === 'income') {
+        dates.add(getRecordDate(record));
+      }
+    }
+    return Array.from(dates);
+  }, [records]);
+
+  const periodLabel = useMemo(() => formatSelectedDatesLabel(selectedDates), [selectedDates]);
 
   const displayName = preferredName.trim() || user?.name || 'Usuario';
 
@@ -119,14 +159,14 @@ export default function FinancesScreen() {
     try {
       const html = buildFinanceReportHtml({
         displayName,
-        range,
+        periodLabel,
         records: financeRecords,
         income: summary.income,
         expense: summary.expense,
         balance: summary.balance,
         currency: summary.currency,
       });
-      await sharePdfReport(`Finanzas ${formatRangeLabel(range)}`, html);
+      await sharePdfReport(`Finanzas ${periodLabel}`, html);
     } finally {
       setIsExporting(false);
     }
@@ -145,26 +185,43 @@ export default function FinancesScreen() {
     <ScreenSafeArea>
       <ScreenHeader
         title="Finanzas"
-        subtitle={`${formatRangeLabel(range)} · ${summary.transactionCount} movimientos`}
+        subtitle={`${periodLabel} · ${summary.transactionCount} movimientos`}
+        accent={accent}
       />
+      <ScreenAccentBar accent={accent} />
       <ScrollView
         contentContainerClassName="w-full max-w-3xl gap-5 self-center px-6 pb-36 pt-4"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing || isRecordsLoading}
             onRefresh={handleRefresh}
-            tintColor="#7C3AED"
-            colors={['#7C3AED']}
+            tintColor={accent.main}
+            colors={[accent.main]}
           />
         }>
-        <DateRangePicker preset={preset} range={range} onChange={onChange} />
+        <AgendaCalendar
+          selectedDates={selectedDates}
+          markedDates={markedDates}
+          onChange={onChange}
+          onVisibleMonthChange={setVisibleMonth}
+          accent={accent}
+          footerContent={
+            <CalendarBulkActions
+              selectedDates={selectedDates}
+              visibleMonth={visibleMonth}
+              onChange={onChange}
+              accent={accent}
+            />
+          }
+        />
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Descargar reporte financiero"
           onPress={handleDownload}
           disabled={isExporting}
-          className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-3.5 active:opacity-90 dark:bg-brand-dark">
+          className="flex-row items-center justify-center gap-2 rounded-2xl px-4 py-3.5 active:opacity-90"
+          style={{ backgroundColor: accent.main }}>
           {isExporting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
@@ -186,6 +243,7 @@ export default function FinancesScreen() {
             label="Ingresos"
             value={formatMoney(summary.income, summary.currency)}
             tone="income"
+            accentColor={accent.main}
           />
           <FinanceSummaryCard
             label="Gastos"
@@ -200,10 +258,9 @@ export default function FinancesScreen() {
           </Text>
           <Text
             className={`mt-1 text-2xl font-bold ${
-              summary.balance >= 0
-                ? 'text-brand dark:text-brand-dark'
-                : 'text-danger dark:text-danger-dark'
-            }`}>
+              summary.balance >= 0 ? '' : 'text-danger dark:text-danger-dark'
+            }`}
+            style={summary.balance >= 0 ? { color: accent.main } : undefined}>
             {formatMoney(summary.balance, summary.currency)}
           </Text>
         </View>
@@ -211,10 +268,12 @@ export default function FinancesScreen() {
         {isRecordsLoading ? (
           <Text className="text-center text-subtle dark:text-subtle-dark">Cargando movimientos...</Text>
         ) : financeRecords.length === 0 ? (
-          <View className="items-center gap-3 rounded-[28px] border border-dashed border-border p-10 dark:border-border-dark">
-            <Ionicons name="wallet-outline" size={40} color="#6B6475" />
+          <View className="items-center gap-3 rounded-[28px] border border-dashed p-10" style={{ borderColor: accent.border }}>
+            <Ionicons name="wallet-outline" size={40} color={accent.main} />
             <Text className="text-center text-subtle dark:text-subtle-dark">
-              Di algo como &quot;Gasté 80 dólares en gasolina&quot; desde Inicio y aparecerá aquí.
+              {selectedDates.length === 0
+                ? 'Selecciona al menos un día en el calendario.'
+                : 'No hay movimientos en las fechas seleccionadas. Di algo como "Gasté 80 dólares en gasolina" desde Inicio.'}
             </Text>
           </View>
         ) : (
@@ -223,7 +282,7 @@ export default function FinancesScreen() {
               Movimientos del periodo
             </Text>
             {financeRecords.map((record) => (
-              <FinanceRecordCard key={record.id} record={record} />
+              <FinanceRecordCard key={record.id} record={record} accentColor={accent.main} />
             ))}
           </View>
         )}

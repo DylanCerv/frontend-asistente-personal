@@ -59,6 +59,7 @@ type AssistantContextValue = {
   sendTextMessage: (text: string) => Promise<void>;
   sendVoiceMessage: (audioUri: string) => Promise<void>;
   toggleTaskComplete: (taskId: string) => void;
+  toggleEventComplete: (eventId: string) => void;
   deleteRecord: (recordId: string) => Promise<void>;
   createRecord: (payload: CreateRecordPayload) => Promise<void>;
   patchRecord: (recordId: string, payload: import('@/types/record-api').UpdateRecordPayload) => Promise<void>;
@@ -298,10 +299,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     [isProcessing, applyVoiceJobResult, handleAssistantError],
   );
 
-  const toggleTaskComplete = useCallback(
-    (taskId: string) => {
-      const record = apiRecords.find((item) => item.id === taskId);
-      if (!record || record.type !== 'task') return;
+  const toggleRecordComplete = useCallback(
+    (recordId: string, allowedTypes: ApiRecord['type'][]) => {
+      const record = apiRecords.find((item) => item.id === recordId);
+      if (!record || !allowedTypes.includes(record.type)) return;
 
       const currentStatus =
         typeof record.data?.status === 'string' && record.data.status === 'completed'
@@ -312,17 +313,27 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
       setApiRecords((prev) =>
         prev.map((item) =>
-          item.id === taskId
+          item.id === recordId
             ? { ...item, data: { ...(item.data ?? {}), ...patch.data } }
             : item,
         ),
       );
 
-      void patchUserRecord(taskId, patch).catch(async () => {
+      void patchUserRecord(recordId, patch).catch(async () => {
         await refreshRecords();
       });
     },
     [apiRecords, refreshRecords],
+  );
+
+  const toggleTaskComplete = useCallback(
+    (taskId: string) => toggleRecordComplete(taskId, ['task']),
+    [toggleRecordComplete],
+  );
+
+  const toggleEventComplete = useCallback(
+    (eventId: string) => toggleRecordComplete(eventId, ['meeting', 'reminder']),
+    [toggleRecordComplete],
   );
 
   const deleteRecord = useCallback(
@@ -373,6 +384,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       sendTextMessage,
       sendVoiceMessage,
       toggleTaskComplete,
+      toggleEventComplete,
       deleteRecord,
       createRecord,
       patchRecord,
@@ -395,6 +407,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       sendTextMessage,
       sendVoiceMessage,
       toggleTaskComplete,
+      toggleEventComplete,
       deleteRecord,
       createRecord,
       patchRecord,

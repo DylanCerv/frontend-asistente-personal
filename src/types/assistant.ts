@@ -28,6 +28,7 @@ export type CalendarEvent = {
   dueAtIso?: string;
   time: string;
   type: 'meeting' | 'reminder' | 'event';
+  status: 'pending' | 'completed';
   location?: string;
   description?: string;
 };

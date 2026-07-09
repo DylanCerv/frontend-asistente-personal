@@ -3,6 +3,7 @@ import type { MemoryRecord } from '@/types/record';
 import {
   endOfWeek,
   isDateInRange,
+  isDateSelected,
   startOfWeek,
   todayIso,
   type DateRange,
@@ -61,15 +62,55 @@ export function buildProgressReport(
   reference = todayIso(),
 ): ProgressReport {
   const activeRange = range ?? { start: startOfWeek(reference), end: endOfWeek(reference) };
+  return buildProgressReportFromFiltered(
+    tasks,
+    events,
+    records,
+    activeRange,
+    reference,
+    (date) => isDateInRange(date, activeRange),
+  );
+}
 
+export function buildProgressReportOnDates(
+  tasks: TaskItem[],
+  events: CalendarEvent[],
+  records: MemoryRecord[],
+  selectedDates: string[],
+  reference = todayIso(),
+): ProgressReport {
+  const sortedDates = [...selectedDates].sort();
+  const activeRange =
+    sortedDates.length > 0
+      ? { start: sortedDates[0], end: sortedDates[sortedDates.length - 1] }
+      : { start: reference, end: reference };
+
+  return buildProgressReportFromFiltered(
+    tasks,
+    events,
+    records,
+    activeRange,
+    reference,
+    (date) => isDateSelected(date, selectedDates),
+  );
+}
+
+function buildProgressReportFromFiltered(
+  tasks: TaskItem[],
+  events: CalendarEvent[],
+  records: MemoryRecord[],
+  activeRange: DateRange,
+  reference: string,
+  matchesDate: (date: string) => boolean,
+): ProgressReport {
   const tasksInRange = tasks.filter((task) => {
     const date = taskDate(task);
-    return date ? isDateInRange(date, activeRange) : false;
+    return date ? matchesDate(date) : false;
   });
 
   const eventsInRange = events.filter((event) => {
     const date = eventDate(event);
-    return date ? isDateInRange(date, activeRange) : false;
+    return date ? matchesDate(date) : false;
   });
 
   const completedTasks = tasksInRange.filter((task) => task.status === 'completed');
@@ -94,7 +135,7 @@ export function buildProgressReport(
   const financeRecords = records.filter((record) => {
     if (record.type !== 'expense' && record.type !== 'income') return false;
     const date = record.scheduledAt ?? record.createdAt?.slice(0, 10);
-    return date ? isDateInRange(date, activeRange) : false;
+    return date ? matchesDate(date) : false;
   }).length;
 
   return {

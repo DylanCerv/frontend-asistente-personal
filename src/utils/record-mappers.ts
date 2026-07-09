@@ -1,6 +1,7 @@
 import type { CalendarEvent, ReminderItem, TaskItem } from '@/types/assistant';
 import type { ApiRecord, UpdateRecordPayload } from '@/types/record-api';
 import type { MemoryRecord } from '@/types/record';
+import { normalizeTaskCategory } from '@/constants/categories';
 import { relativeDayLabel, todayIso } from '@/utils/date-utils';
 
 function readString(data: Record<string, unknown>, key: string): string | undefined {
@@ -42,7 +43,7 @@ export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
     scheduledAt: toScheduledAt(record.date),
     dueAtIso: record.date ?? undefined,
     dueLabel: record.date ? relativeDayLabel(toScheduledAt(record.date)) : undefined,
-    category,
+    category: normalizeTaskCategory(category),
     location,
     client: record.client ?? undefined,
     project: record.project ?? undefined,
@@ -69,7 +70,7 @@ export function memoryRecordToTask(record: MemoryRecord): TaskItem | null {
     createdAt: record.createdAt,
     priority: record.priority ?? 'medium',
     status: record.status === 'completed' ? 'completed' : 'pending',
-    category: record.category ?? 'General',
+    category: normalizeTaskCategory(record.category),
     tags: record.tags ?? [],
   };
 }
@@ -91,6 +92,7 @@ export function memoryRecordToEvent(record: MemoryRecord): CalendarEvent | null 
     dueAtIso: record.dueAtIso,
     time: record.time || 'Sin hora',
     type: eventType,
+    status: record.status === 'completed' ? 'completed' : 'pending',
     location: record.location,
   };
 }
