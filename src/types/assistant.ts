@@ -7,7 +7,8 @@ export type TaskItem = {
   dueLabel?: string;
   dueDate?: string;
   dueAtIso?: string;
-  scheduledAt: string;
+  /** Missing when the user did not specify any day (open pending). */
+  scheduledAt?: string;
   completedAt?: string;
   createdAt?: string;
   estimatedMinutes?: number;

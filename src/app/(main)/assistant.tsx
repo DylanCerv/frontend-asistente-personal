@@ -30,12 +30,14 @@ import { APP_NAME } from '@/constants/branding';
 import { pickVoiceExamples, type VoiceExample } from '@/constants/voice-examples';
 import { useAssistant } from '@/context/assistant-context';
 import { useAuth } from '@/context/auth-context';
+import { useUserPreferences } from '@/context/user-preferences-context';
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
 
 export default function AssistantScreen() {
   const router = useRouter();
   const { autoRecord } = useLocalSearchParams<{ autoRecord?: string }>();
   const { user } = useAuth();
+  const { autoSendVoice } = useUserPreferences();
   const { sendTextMessage, sendVoiceMessage, isProcessing, processingStep } = useAssistant();
   const { isRecording, hasRecording, uri, error, startRecording, stopRecording, reset } =
     useVoiceRecorder();
@@ -45,11 +47,12 @@ export default function AssistantScreen() {
   const [isPlayingReview, setIsPlayingReview] = useState(false);
   const [examples, setExamples] = useState<VoiceExample[]>(() => pickVoiceExamples());
   const isAutoStartingRef = useRef(false);
+  const autoSendInFlightUriRef = useRef<string | null>(null);
 
   const canSendText = input.trim().length > 0 && !isProcessing && !isRecording && !hasRecording;
   const isListening = isRecording;
   const showBusy = isProcessing && !isListening;
-  const showReview = hasRecording && !!uri && !isProcessing;
+  const showReview = hasRecording && !!uri && !isProcessing && !autoSendVoice;
 
   useFocusEffect(
     useCallback(() => {
@@ -60,6 +63,25 @@ export default function AssistantScreen() {
   useEffect(() => {
     if (error) setStatusError(error);
   }, [error]);
+
+  useEffect(() => {
+    if (!autoSendVoice || !hasRecording || !uri || isProcessing || isRecording) return;
+    if (autoSendInFlightUriRef.current === uri) return;
+
+    autoSendInFlightUriRef.current = uri;
+    setStatusError(null);
+
+    void sendVoiceMessage(uri)
+      .catch(() => {
+        setStatusError('No se pudo procesar el audio. Intenta de nuevo.');
+      })
+      .finally(() => {
+        if (autoSendInFlightUriRef.current === uri) {
+          autoSendInFlightUriRef.current = null;
+        }
+        reset();
+      });
+  }, [autoSendVoice, hasRecording, uri, isProcessing, isRecording, sendVoiceMessage, reset]);
 
   useEffect(() => {
     if (autoRecord !== '1') return;
@@ -93,17 +115,27 @@ export default function AssistantScreen() {
     await startRecording();
   }
 
-  async function handleSendRecording() {
-    if (!uri || isProcessing) return;
-
+  async function sendVoiceUri(audioUri: string) {
     try {
       setStatusError(null);
-      await sendVoiceMessage(uri);
+      await sendVoiceMessage(audioUri);
     } catch {
       setStatusError('No se pudo procesar el audio. Intenta de nuevo.');
     } finally {
       reset();
     }
+  }
+
+  async function handleSendRecording() {
+    if (!uri || isProcessing) return;
+    await sendVoiceUri(uri);
+  }
+
+  function handleDeleteRecording() {
+    if (isProcessing) return;
+    setStatusError(null);
+    setIsPlayingReview(false);
+    reset();
   }
 
   async function handleRepeatRecording() {
@@ -126,7 +158,7 @@ export default function AssistantScreen() {
     : isListening
       ? `${APP_NAME} está escuchando...`
       : showReview
-        ? 'Audio listo. Escúchalo, envíalo o graba de nuevo.'
+        ? null
         : showBusy
           ? processingStep === 'transcribing' || processingStep === 'uploading'
             ? 'Procesando tu audio...'
@@ -171,11 +203,13 @@ export default function AssistantScreen() {
               <Text className="text-center text-[26px] font-bold leading-9 text-white">
                 ¿Qué necesitas recordar?
               </Text>
-              <Text
-                className="text-center text-[14px]"
-                style={{ color: statusError ? '#F87171' : APP_ACCENT }}>
-                {statusLabel}
-              </Text>
+              {statusLabel ? (
+                <Text
+                  className="text-center text-[14px]"
+                  style={{ color: statusError ? '#F87171' : APP_ACCENT }}>
+                  {statusLabel}
+                </Text>
+              ) : null}
             </View>
 
             <VoiceWaveform active={isListening || showBusy || isPlayingReview} />
@@ -186,6 +220,7 @@ export default function AssistantScreen() {
                 disabled={isProcessing}
                 onSend={() => void handleSendRecording()}
                 onRepeat={() => void handleRepeatRecording()}
+                onDelete={handleDeleteRecording}
                 onPlayingChange={setIsPlayingReview}
               />
             ) : (

@@ -87,7 +87,9 @@ export function buildProgressReportHtml(input: {
           <strong>${escapeHtml(task.title)}</strong>
           <span class="muted">${escapeHtml(PRIORITY_LABELS[task.priority])}</span>
         </div>
-        <p class="muted">${escapeHtml(task.category)} · ${escapeHtml(formatLongDate(task.scheduledAt))}</p>
+        <p class="muted">${escapeHtml(task.category)}${
+          task.scheduledAt ? ` · ${escapeHtml(formatLongDate(task.scheduledAt))}` : ' · Sin fecha'
+        }</p>
         ${task.description ? `<p>${escapeHtml(task.description)}</p>` : ''}
       </div>`,
     )
@@ -98,7 +100,11 @@ export function buildProgressReportHtml(input: {
       (task) => `
       <div class="card">
         <strong>${escapeHtml(task.title)}</strong>
-        <p class="muted">${escapeHtml(formatLongDate(task.scheduledAt))}</p>
+        <p class="muted">${
+          task.scheduledAt
+            ? escapeHtml(formatLongDate(task.scheduledAt))
+            : 'Sin fecha'
+        }</p>
       </div>`,
     )
     .join('');

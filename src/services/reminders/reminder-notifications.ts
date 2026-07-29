@@ -93,6 +93,8 @@ const REMINDER_ID_PREFIXES = [
   'kivo-exact-',
   'kivo-summary-',
   'kivo-snooze-',
+  'kivo-checkin-',
+  'kivo-open-',
 ] as const;
 
 const CRITICAL_ACCENT = '#F8A49B';

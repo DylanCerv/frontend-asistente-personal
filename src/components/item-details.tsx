@@ -30,9 +30,19 @@ export function TaskDetailsContent({ task }: { task: TaskItem }) {
       ) : null}
       <DetailRow
         label="Fecha"
-        value={task.dueLabel ?? formatLongDate(task.scheduledAt)}
+        value={
+          task.dueLabel ??
+          (task.scheduledAt ? formatLongDate(task.scheduledAt) : 'Sin fecha (pendiente abierto)')
+        }
         icon="calendar-outline"
       />
+      {task.completedAt ? (
+        <DetailRow
+          label="Completada"
+          value={formatLongDate(task.completedAt.slice(0, 10))}
+          icon="checkbox-outline"
+        />
+      ) : null}
       <CategoryDetailRow category={task.category} />
       <DetailRow
         label="Prioridad"

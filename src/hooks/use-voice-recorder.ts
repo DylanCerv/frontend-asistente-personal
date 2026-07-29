@@ -79,10 +79,12 @@ export function useVoiceRecorder() {
 
       setUri(recordedUri);
       setState('recorded');
+      return recordedUri;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo detener la grabación');
       setState('idle');
       await releaseAudioRecorderSession(recorder);
+      return null;
     }
   }, [recorder]);
 

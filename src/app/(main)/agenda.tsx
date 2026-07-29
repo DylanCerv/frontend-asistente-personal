@@ -1,9 +1,11 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
   Modal,
   Platform,
   Pressable,
@@ -20,8 +22,10 @@ import { PRIORITY_LABELS } from '@/constants/labels';
 import { CATEGORY_OPTIONS, getCategoryIcon } from '@/constants/categories';
 import {
   APP_ACCENT,
+  APP_BORDER,
   APP_DANGER,
   APP_ON_ACCENT,
+  APP_SURFACE,
   APP_SURFACE_SOFT,
   APP_TEXT_MUTED,
 } from '@/constants/app-colors';
@@ -44,15 +48,21 @@ import { getRecordHistory } from '@/services/records/records-api';
 
 type Priority = NonNullable<UpdateRecordPayload['priority']>;
 import {
+  buildChronologicalAgendaItems,
   filterTasksByDates,
   getTaskSubtitle,
   getTaskTimeLabel,
+  isEventTimePast,
   isExpiringSoon,
+  isOpenPendingTask,
+  isOverduePendingTask,
+  isTaskTimePast,
 } from '@/utils/agenda-utils';
 import {
   formatSelectedDatesLabel,
   isDateSelected,
   relativeDayLabel,
+  todayIso,
 } from '@/utils/date-utils';
 
 type FilterType = 'all' | 'tasks' | 'events';
@@ -66,12 +76,34 @@ export default function AgendaScreen() {
   const { preferredName } = useUserPreferences();
   const { tasks, events, toggleTaskComplete, toggleEventComplete, deleteRecord, patchRecord, refreshRecords } = useAssistant();
   const { deviceCalendarEvents, refreshDeviceCalendar } = useDeviceCalendar();
-  const { selectedDates, onChange } = useAgendaCalendarState();
+  const { selectedDates, onChange } = useAgendaCalendarState(todayIso());
   const accent = useScreenAccent('agenda');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const setSelectedDates = useCallback(
+    (dates: string[]) => {
+      onChange(dates.length > 0 ? dates : [todayIso()]);
+    },
+    [onChange],
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const prevState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (prevState === 'background' && nextState === 'active') {
+        setSelectedDates([todayIso()]);
+        setFilterType('all');
+      }
+    });
+
+    return () => subscription.remove();
+  }, [setSelectedDates]);
 
   const allEvents = useMemo(
     () => [...events, ...deviceCalendarEvents],
@@ -114,13 +146,25 @@ export default function AgendaScreen() {
 
   const groupedDays = useMemo(() => {
     const dates = [...selectedDates].sort().reverse();
+    const today = todayIso();
     return dates
-      .map((date) => ({
-        date,
-        label: relativeDayLabel(date),
-        tasks: filterType !== 'events' ? filteredTasks.filter((t) => t.scheduledAt === date) : [],
-        events: filterType !== 'tasks' ? filteredEvents.filter((e) => e.scheduledAt === date) : [],
-      }))
+      .map((date) => {
+        const dayTasks =
+          filterType === 'events'
+            ? []
+            : filteredTasks.filter((t) => {
+                if (t.scheduledAt === date) return true;
+                // Open pending (no date) surface under Hoy only.
+                if (date === today && t.status === 'pending' && !t.scheduledAt) return true;
+                return false;
+              });
+        return {
+          date,
+          label: relativeDayLabel(date),
+          tasks: dayTasks,
+          events: filterType !== 'tasks' ? filteredEvents.filter((e) => e.scheduledAt === date) : [],
+        };
+      })
       .filter((day) => day.tasks.length > 0 || day.events.length > 0);
   }, [selectedDates, filteredTasks, filteredEvents, filterType]);
 
@@ -240,13 +284,13 @@ export default function AgendaScreen() {
             colors={[APP_ACCENT]}
           />
         }>
-        <View className="flex-row items-center gap-3">
+        <View className="flex-row items-center gap-2.5">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Descargar reportes"
             disabled={isExporting}
             onPress={() => void handleDownloadReports()}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl py-3.5 active:opacity-85"
+            className="min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl active:opacity-85"
             style={{ backgroundColor: APP_ACCENT, opacity: isExporting ? 0.7 : 1 }}>
             {isExporting ? (
               <ActivityIndicator size="small" color={APP_ON_ACCENT} />
@@ -263,16 +307,21 @@ export default function AgendaScreen() {
             accessibilityLabel="Filtros"
             accessibilityState={{ selected: filtersVisible }}
             onPress={() => setFiltersVisible((prev) => !prev)}
-            className="h-12 w-12 items-center justify-center rounded-2xl border active:opacity-85"
+            className="min-h-[52px] flex-row items-center justify-center gap-2 rounded-2xl border px-4 active:opacity-85"
             style={{
-              borderColor: filtersVisible ? APP_ACCENT : 'rgba(255,255,255,0.12)',
-              backgroundColor: filtersVisible ? 'rgba(196,181,253,0.14)' : APP_SURFACE_SOFT,
+              borderColor: filtersVisible ? APP_ACCENT : APP_BORDER,
+              backgroundColor: filtersVisible ? accent.soft : APP_SURFACE,
             }}>
             <Ionicons
-              name="options-outline"
-              size={20}
+              name={filtersVisible ? 'options' : 'options-outline'}
+              size={18}
               color={filtersVisible ? APP_ACCENT : '#FFFFFF'}
             />
+            <Text
+              className="text-[14px] font-semibold"
+              style={{ color: filtersVisible ? APP_ACCENT : '#FFFFFF' }}>
+              Filtros
+            </Text>
           </Pressable>
         </View>
 
@@ -281,7 +330,7 @@ export default function AgendaScreen() {
             <AgendaCalendar
               selectedDates={selectedDates}
               markedDates={markedDates}
-              onChange={onChange}
+              onChange={setSelectedDates}
               accent={accent}
             />
 
@@ -348,8 +397,8 @@ export default function AgendaScreen() {
             style={{ borderColor: accent.border }}>
             <Ionicons name="checkbox-outline" size={40} color={APP_ACCENT} />
             <Text className="text-center text-subtle dark:text-subtle-dark">
-              {selectedDates.length === 0
-                ? 'Selecciona al menos un día en los filtros.'
+              {selectedDates.length === 1 && selectedDates[0] === todayIso()
+                ? 'No hay nada para hoy. Habla con Kivo para crear tareas.'
                 : 'No hay nada en estos días. Habla con Kivo para crear tareas.'}
             </Text>
           </View>
@@ -381,28 +430,43 @@ function DayGroup({
   onPatch: PatchFn;
   onSaved: () => void;
 }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const orderedItems = useMemo(
+    () => buildChronologicalAgendaItems(events, tasks),
+    [events, tasks],
+  );
+
   return (
     <View className="gap-3">
-      {events.map((event) => (
-        <AgendaEventCard
-          key={event.id}
-          event={event}
-          onToggle={() => onToggleEvent(event.id)}
-          onDelete={() => onDeleteEvent(event.id, event.title)}
-          onPatch={onPatch}
-          onSave={onSaved}
-        />
-      ))}
-      {tasks.map((task) => (
-        <AgendaTaskCard
-          key={task.id}
-          task={task}
-          onToggle={() => onToggleTask(task.id)}
-          onDelete={() => onDeleteTask(task.id, task.title)}
-          onPatch={onPatch}
-          onSave={onSaved}
-        />
-      ))}
+      {orderedItems.map((item) =>
+        item.kind === 'event' ? (
+          <AgendaEventCard
+            key={item.event.id}
+            event={item.event}
+            now={now}
+            onToggle={() => onToggleEvent(item.event.id)}
+            onDelete={() => onDeleteEvent(item.event.id, item.event.title)}
+            onPatch={onPatch}
+            onSave={onSaved}
+          />
+        ) : (
+          <AgendaTaskCard
+            key={item.task.id}
+            task={item.task}
+            now={now}
+            onToggle={() => onToggleTask(item.task.id)}
+            onDelete={() => onDeleteTask(item.task.id, item.task.title)}
+            onPatch={onPatch}
+            onSave={onSaved}
+          />
+        ),
+      )}
     </View>
   );
 }
@@ -443,6 +507,7 @@ function CompletionCheckbox({
 function AgendaEventCard({
   event,
   defaultExpanded = false,
+  now = Date.now(),
   onToggle,
   onDelete,
   onPatch,
@@ -450,18 +515,22 @@ function AgendaEventCard({
 }: {
   event: CalendarEvent;
   defaultExpanded?: boolean;
+  now?: number;
   onToggle: () => void;
   onDelete: () => void;
   onPatch: PatchFn;
   onSave: () => void;
 }) {
   const isCompleted = event.status === 'completed';
+  const isPast = !isCompleted && isEventTimePast(event, now);
   const isDeviceEvent = event.source === 'device' || event.readOnly === true;
   const [editVisible, setEditVisible] = useState(false);
+  const titleColor = isCompleted || isPast ? APP_TEXT_MUTED : '#FFFFFF';
+  const timeColor = isCompleted || isPast ? APP_TEXT_MUTED : APP_ACCENT;
 
   return (
     <>
-      <View className="flex-row items-start gap-2">
+      <View className="flex-row items-start gap-2" style={{ opacity: isPast ? 0.58 : 1 }}>
         {isDeviceEvent ? (
           <View className="h-6 w-6 items-center justify-center">
             <Ionicons name="phone-portrait-outline" size={16} color={APP_TEXT_MUTED} />
@@ -506,11 +575,8 @@ function AgendaEventCard({
             <View className="flex-row items-center gap-3">
               <View className="w-14 items-center">
                 <Text
-                  className={`text-sm font-bold ${
-                    isCompleted
-                      ? 'text-subtle line-through dark:text-subtle-dark'
-                      : 'text-brand dark:text-brand-dark'
-                  }`}>
+                  className={`text-sm font-bold ${isCompleted ? 'line-through' : ''}`}
+                  style={{ color: timeColor }}>
                   {event.time.split(' ')[0]}
                 </Text>
               </View>
@@ -523,27 +589,24 @@ function AgendaEventCard({
                         'calendar-outline')
                   }
                   size={20}
-                  color="#7C3AED"
+                  color={isPast ? APP_TEXT_MUTED : '#7C3AED'}
                 />
               </View>
               <View className="flex-1 gap-0.5">
                 <Text
-                  className={`text-[15px] font-semibold ${
-                    isCompleted
-                      ? 'text-subtle line-through dark:text-subtle-dark'
-                      : 'text-foreground dark:text-foreground-dark'
-                  }`}>
+                  className={`text-[15px] font-semibold ${isCompleted ? 'line-through' : ''}`}
+                  style={{ color: titleColor }}>
                   {event.title}
                 </Text>
-                <Text className="text-xs text-subtle dark:text-subtle-dark">
+                <Text className="text-xs" style={{ color: APP_TEXT_MUTED }}>
                   {isDeviceEvent
                     ? `Calendario${event.calendarName ? ` · ${event.calendarName}` : ''}`
-                    : event.type === 'meeting'
-                      ? 'Reunión'
-                      : event.type === 'reminder'
-                        ? 'Recordatorio'
-                        : 'Evento'}
-                  {isCompleted ? ' · Completado' : ''}
+                      : event.type === 'meeting'
+                        ? 'Cita'
+                        : event.type === 'reminder'
+                          ? 'Aviso'
+                          : 'Evento'}
+                  {isCompleted ? ' · Completado' : isPast ? ' · Pasada' : ''}
                 </Text>
               </View>
             </View>
@@ -576,6 +639,7 @@ function AgendaTaskCard({
   onPatch,
   onSave,
   defaultExpanded = false,
+  now = Date.now(),
 }: {
   task: TaskItem;
   onToggle: () => void;
@@ -583,9 +647,13 @@ function AgendaTaskCard({
   onPatch: PatchFn;
   onSave: () => void;
   defaultExpanded?: boolean;
+  now?: number;
 }) {
   const isCompleted = task.status === 'completed';
-  const urgent = isExpiringSoon(task);
+  const isPast = !isCompleted && isTaskTimePast(task, now);
+  const isOpen = !isCompleted && isOpenPendingTask(task);
+  const isOverdue = !isCompleted && isOverduePendingTask(task);
+  const urgent = !isPast && !isOpen && !isOverdue && isExpiringSoon(task, now);
   const timeLabel = getTaskTimeLabel(task);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [editVisible, setEditVisible] = useState(false);
@@ -596,14 +664,19 @@ function AgendaTaskCard({
         className="overflow-hidden rounded-2xl border px-4 py-3.5"
         style={{
           backgroundColor: APP_SURFACE_SOFT,
-          borderColor: urgent ? 'rgba(196,181,253,0.45)' : 'rgba(255,255,255,0.06)',
+          borderColor: urgent
+            ? 'rgba(196,181,253,0.45)'
+            : isPast
+              ? 'rgba(255,255,255,0.04)'
+              : 'rgba(255,255,255,0.06)',
+          opacity: isPast ? 0.58 : 1,
           shadowColor: urgent ? APP_ACCENT : 'transparent',
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: urgent ? 0.55 : 0,
           shadowRadius: urgent ? 14 : 0,
           elevation: urgent ? 8 : 0,
         }}>
-        {urgent || timeLabel ? (
+        {urgent || timeLabel || isPast || isOpen || isOverdue ? (
           <View className="mb-2.5 flex-row items-center justify-between gap-2">
             {urgent ? (
               <View
@@ -614,6 +687,39 @@ function AgendaTaskCard({
                   className="text-[10px] font-bold uppercase tracking-wide"
                   style={{ color: APP_DANGER }}>
                   Vence pronto
+                </Text>
+              </View>
+            ) : isOverdue ? (
+              <View
+                className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
+                style={{ backgroundColor: 'rgba(248,113,113,0.14)' }}>
+                <Ionicons name="hourglass-outline" size={11} color={APP_DANGER} />
+                <Text
+                  className="text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: APP_DANGER }}>
+                  Atrasada
+                </Text>
+              </View>
+            ) : isOpen ? (
+              <View
+                className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
+                style={{ backgroundColor: 'rgba(196,181,253,0.14)' }}>
+                <Ionicons name="ellipse-outline" size={11} color={APP_ACCENT} />
+                <Text
+                  className="text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: APP_ACCENT }}>
+                  Sin fecha
+                </Text>
+              </View>
+            ) : isPast ? (
+              <View
+                className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
+                style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                <Ionicons name="time-outline" size={11} color={APP_TEXT_MUTED} />
+                <Text
+                  className="text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: APP_TEXT_MUTED }}>
+                  Pasada
                 </Text>
               </View>
             ) : (
@@ -640,12 +746,13 @@ function AgendaTaskCard({
             <View className="gap-0.5">
               <Text
                 className={`text-[15px] font-semibold ${isCompleted ? 'line-through' : ''}`}
-                style={{ color: isCompleted ? APP_TEXT_MUTED : '#FFFFFF' }}
+                style={{ color: isCompleted || isPast ? APP_TEXT_MUTED : '#FFFFFF' }}
                 numberOfLines={2}>
                 {task.title}
               </Text>
               <Text className="text-[12px]" style={{ color: APP_TEXT_MUTED }}>
                 {getTaskSubtitle(task)}
+                {isPast && !isCompleted ? ' · Pasada' : ''}
               </Text>
             </View>
           </Pressable>
@@ -799,8 +906,8 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
 ];
 
 const EVENT_TYPE_OPTIONS: { value: RecordType; label: string; icon: string }[] = [
-  { value: 'meeting', label: 'Reunión', icon: 'people-outline' },
-  { value: 'reminder', label: 'Recordatorio', icon: 'notifications-outline' },
+  { value: 'meeting', label: 'Cita', icon: 'people-outline' },
+  { value: 'reminder', label: 'Aviso', icon: 'notifications-outline' },
 ];
 
 function DatePickerField({

@@ -299,19 +299,20 @@ export function AgendaCalendar({
         <Text className="flex-1 text-xs font-medium text-subtle dark:text-subtle-dark">
           {label}
         </Text>
-        {selectedDates.length > 0 ? (
+        {selectedDates.length > 1 ||
+        (selectedDates.length === 1 && selectedDates[0] !== todayIso()) ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Borrar días seleccionados"
+            accessibilityLabel="Volver a hoy"
             onPress={() => {
               setRangeAnchor(null);
-              onChange([]);
+              onChange([todayIso()]);
             }}
             className="flex-row items-center gap-1 rounded-full px-2.5 py-1 active:opacity-80"
             style={{ backgroundColor: accent.soft }}>
-            <Ionicons name="close-circle-outline" size={14} color={accent.main} />
+            <Ionicons name="today-outline" size={14} color={accent.main} />
             <Text className="text-[11px] font-semibold" style={{ color: accent.main }}>
-              Limpiar
+              Hoy
             </Text>
           </Pressable>
         ) : null}
@@ -389,17 +390,14 @@ export function CalendarBulkActions({
     monthDates.length > 0 && monthDates.every((day) => selectedSet.has(day));
   const monthLabel = `${MONTH_LABELS[visibleMonth.month].slice(0, 3)}`;
 
-  function clearSelection() {
-    onChange([]);
-  }
-
   function selectTodayOnly() {
     onChange([todayIso()]);
   }
 
   function toggleVisibleMonth() {
     if (allMonthSelected) {
-      onChange(selectedDates.filter((day) => !monthSet.has(day)));
+      const remaining = selectedDates.filter((day) => !monthSet.has(day));
+      onChange(remaining.length > 0 ? remaining : [todayIso()]);
       return;
     }
     onChange(mergeSelectedDates(selectedDates, monthDates));
@@ -411,13 +409,6 @@ export function CalendarBulkActions({
         Acciones rápidas · {selectedDates.length} día{selectedDates.length === 1 ? '' : 's'}
       </Text>
       <View className="flex-row gap-2">
-        <BulkActionButton
-          label="Limpiar"
-          icon="close-circle-outline"
-          onPress={clearSelection}
-          active={selectedDates.length === 0}
-          accent={accent}
-        />
         <BulkActionButton
           label="Solo hoy"
           icon="today-outline"

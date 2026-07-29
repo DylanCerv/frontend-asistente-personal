@@ -53,7 +53,11 @@ export function getGreetingLabel(date = new Date()): string {
 
 export function getTodayPendingTasks(tasks: TaskItem[], today = todayIso()): TaskItem[] {
   return tasks
-    .filter((task) => task.status === 'pending' && task.scheduledAt === today)
+    .filter((task) => {
+      if (task.status !== 'pending') return false;
+      if (!task.scheduledAt) return true; // open pending
+      return task.scheduledAt === today; // day-only / dated → only that day
+    })
     .sort((a, b) => {
       const priorityRank = { high: 0, medium: 1, low: 2 } as const;
       const byPriority = priorityRank[a.priority] - priorityRank[b.priority];
@@ -92,7 +96,7 @@ export function getLaterItems(
         event.time,
         event.source === 'device'
           ? event.calendarName || 'Calendario'
-          : event.location || (event.type === 'meeting' ? 'Reunión' : undefined),
+          : event.location || (event.type === 'meeting' ? 'Cita' : undefined),
       ]
         .filter(Boolean)
         .join(' • '),

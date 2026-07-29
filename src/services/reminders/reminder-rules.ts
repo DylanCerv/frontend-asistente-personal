@@ -24,16 +24,27 @@ const DAY_OFFSETS_BY_PRIORITY: Record<Priority, number[]> = {
 
 export const EXACT_ALERT_ID_PREFIX = 'kivo-exact-';
 export const OFFSET_ALERT_ID_PREFIX = 'asistente-reminder-';
+export const CHECKIN_ALERT_ID_PREFIX = 'kivo-checkin-';
 export const DAILY_SUMMARY_ID = 'kivo-summary-daily';
 export const SNOOZE_ALERT_ID_PREFIX = 'kivo-snooze-';
 
-/** Soft day reminders fire at this local time (early risers plan their day from here). */
+/** Soft day / check-in morning slot. */
 export const SOFT_DAY_NOTIFICATION_HOUR = 5;
 export const SOFT_DAY_NOTIFICATION_MINUTE = 0;
 
 /** Daily assistant digest — same early window as soft day reminders. */
 export const DAILY_SUMMARY_HOUR = 5;
 export const DAILY_SUMMARY_MINUTE = 0;
+
+/**
+ * Same check-in hours for:
+ * - day-only tasks (on due day + while still pending)
+ * - open-ended tasks (every day until completed)
+ */
+export const DAY_CHECKIN_HOURS = [5, 12, 18] as const;
+
+/** How many calendar days ahead to pre-schedule check-ins (app resync refreshes). */
+const CHECKIN_LOOKAHEAD_DAYS = 7;
 
 /** Backend default times when the user did not mention a specific clock time. */
 const IMPLICIT_DAY_TIMES = [
@@ -122,9 +133,9 @@ function formatExactTimeLabel(date: Date): string {
 
 function buildExactTimeMessage(record: MemoryRecord, triggerAt: Date): string {
   const timeLabel = formatExactTimeLabel(triggerAt);
-  if (record.type === 'meeting') return `Reunión a las ${timeLabel}`;
-  if (record.type === 'reminder') return `¡Es la hora! ${record.title}`;
-  return `Pendiente a las ${timeLabel}: ${record.title}`;
+  // Keep copy type-agnostic so reminder/meeting/task don't confuse the user.
+  if (record.type === 'meeting') return `${record.title} · ${timeLabel}`;
+  return `Es la hora · ${record.title}`;
 }
 
 function startOfLocalDay(date: Date): Date {
@@ -141,13 +152,88 @@ function buildDayMessage(record: MemoryRecord, daysBefore: number): string {
   if (daysBefore === 7) return `Faltan 7 días: ${record.title}`;
   if (daysBefore === 3) return `Faltan 3 días: ${record.title}`;
   if (daysBefore === 1) return `Mañana: ${record.title}`;
-  if (record.type === 'reminder') return `Hoy: ${record.title}`;
-  return `Hoy vence: ${record.title}`;
+  return `Hoy: ${record.title}`;
 }
 
 function isSchedulableRecord(record: MemoryRecord): boolean {
   if (record.status === 'completed') return false;
   return record.type === 'task' || record.type === 'reminder' || record.type === 'meeting';
+}
+
+/** No day and no time — open pending until the user completes it. */
+export function isOpenEndedRecord(record: MemoryRecord): boolean {
+  return isSchedulableRecord(record) && !record.dueAtIso && !record.scheduledAt;
+}
+
+function checkInBody(record: MemoryRecord, hour: number): string {
+  if (hour === 5) return `Hoy: ${record.title}`;
+  if (hour === 12) return `Recuerda: ${record.title}`;
+  return `Pendiente: ${record.title}`;
+}
+
+function buildCheckInsForCalendarDay(
+  record: MemoryRecord,
+  day: Date,
+  nowMs: number,
+): ReminderScheduleItem[] {
+  const items: ReminderScheduleItem[] = [];
+
+  for (const hour of DAY_CHECKIN_HOURS) {
+    const triggerAt = new Date(
+      day.getFullYear(),
+      day.getMonth(),
+      day.getDate(),
+      hour,
+      0,
+      0,
+      0,
+    );
+    if (triggerAt.getTime() <= nowMs) continue;
+
+    const alertLevel: ReminderAlertLevel =
+      hour === 5 && isCriticalRecord(record) ? 'alarm' : 'notification';
+
+    items.push({
+      id: `${CHECKIN_ALERT_ID_PREFIX}${record.id}-${triggerAt.getTime()}`,
+      recordId: record.id,
+      triggerAt,
+      title: resolveKind(record, alertLevel) === 'critical' ? 'Alerta crítica' : 'Kivo',
+      body: checkInBody(record, hour),
+      alertLevel,
+      kind: resolveKind(record, alertLevel),
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Check-ins at 5:00 / 12:00 / 18:00.
+ * - Day-only: only on the due calendar day.
+ * - Open-ended: today + lookahead days until completed.
+ */
+function buildPendingCheckInReminders(
+  record: MemoryRecord,
+  dueDate: Date | null,
+  nowMs: number,
+): ReminderScheduleItem[] {
+  const now = new Date(nowMs);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Day-only → remind only on the user-specified day.
+  if (dueDate) {
+    const dueStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    return buildCheckInsForCalendarDay(record, dueStart, nowMs);
+  }
+
+  // Open-ended → repeat daily while still pending.
+  const items: ReminderScheduleItem[] = [];
+  for (let offset = 0; offset < CHECKIN_LOOKAHEAD_DAYS; offset += 1) {
+    const day = new Date(todayStart);
+    day.setDate(todayStart.getDate() + offset);
+    items.push(...buildCheckInsForCalendarDay(record, day, nowMs));
+  }
+  return items;
 }
 
 function isCriticalRecord(record: MemoryRecord): boolean {
@@ -314,16 +400,28 @@ export function buildReminderSchedule(
   for (const record of records) {
     if (!isSchedulableRecord(record)) continue;
 
+    // Open (no day/time): same 5 / 12 / 18 check-ins every day until completed.
+    if (isOpenEndedRecord(record)) {
+      items.push(...buildPendingCheckInReminders(record, null, now));
+      continue;
+    }
+
     const exactDue = parseExactDueDate(record);
     const dueDate = exactDue ?? parseDueDate(record);
     if (!dueDate) continue;
 
-    const exactItem = buildExactTimeReminder(record, now);
-    if (exactItem) {
-      items.push(exactItem);
+    if (exactDue) {
+      const exactItem = buildExactTimeReminder(record, now);
+      if (exactItem) items.push(exactItem);
+      // Timed items keep advance offsets + 1h-before.
+      items.push(...buildOffsetReminders(record, dueDate, now, Boolean(exactItem)));
+      continue;
     }
 
-    items.push(...buildOffsetReminders(record, dueDate, now, Boolean(exactItem)));
+    // Day-only: 5 / 12 / 18 on due day and while still pending (incl. overdue days).
+    // Also keep early soft notices (mañana / faltan N días) before the due day.
+    items.push(...buildOffsetReminders(record, dueDate, now, true));
+    items.push(...buildPendingCheckInReminders(record, dueDate, now));
   }
 
   if (options?.includeDailySummary !== false) {

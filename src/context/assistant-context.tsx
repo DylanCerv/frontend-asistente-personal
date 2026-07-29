@@ -314,7 +314,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setApiRecords((prev) =>
         prev.map((item) =>
           item.id === recordId
-            ? { ...item, data: { ...(item.data ?? {}), ...patch.data } }
+            ? {
+                ...item,
+                ...(patch.date !== undefined ? { date: patch.date } : {}),
+                data: { ...(item.data ?? {}), ...patch.data },
+              }
             : item,
         ),
       );

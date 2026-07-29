@@ -6,6 +6,7 @@ import { Pressable, Text, View } from 'react-native';
 import {
   APP_ACCENT,
   APP_BORDER,
+  APP_DANGER,
   APP_ON_ACCENT,
   APP_SURFACE,
   APP_SURFACE_SOFT,
@@ -17,6 +18,7 @@ type VoiceReviewControlsProps = {
   disabled?: boolean;
   onSend: () => void;
   onRepeat: () => void;
+  onDelete: () => void;
   onPlayingChange?: (playing: boolean) => void;
 };
 
@@ -32,6 +34,7 @@ export function VoiceReviewControls({
   disabled = false,
   onSend,
   onRepeat,
+  onDelete,
   onPlayingChange,
 }: VoiceReviewControlsProps) {
   const player = useAudioPlayer(uri);
@@ -55,6 +58,10 @@ export function VoiceReviewControls({
     return () => onPlayingChange?.(false);
   }, [isPlaying, onPlayingChange]);
 
+  function stopPlayback() {
+    if (playerStatus.playing) player.pause();
+  }
+
   function handlePlayPress() {
     if (disabled) return;
 
@@ -67,15 +74,21 @@ export function VoiceReviewControls({
     player.play();
   }
 
+  function handleDelete() {
+    if (disabled) return;
+    stopPlayback();
+    onDelete();
+  }
+
   function handleRepeat() {
     if (disabled) return;
-    if (playerStatus.playing) player.pause();
+    stopPlayback();
     onRepeat();
   }
 
   function handleSend() {
     if (disabled) return;
-    if (playerStatus.playing) player.pause();
+    stopPlayback();
     onSend();
   }
 
@@ -125,19 +138,30 @@ export function VoiceReviewControls({
       <View className="flex-row items-center gap-2.5">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Grabar de nuevo"
+          accessibilityLabel="Eliminar audio"
           disabled={disabled}
-          onPress={handleRepeat}
-          className="min-h-[48px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl border active:opacity-80"
+          onPress={handleDelete}
+          className="h-12 flex-1 items-center justify-center rounded-2xl border active:opacity-80"
           style={{
             backgroundColor: APP_SURFACE,
             borderColor: APP_BORDER,
             opacity: disabled ? 0.55 : 1,
           }}>
-          <Ionicons name="refresh-outline" size={18} color={APP_ACCENT} />
-          <Text className="text-[14px] font-semibold" style={{ color: APP_ACCENT }}>
-            Repetir
-          </Text>
+          <Ionicons name="trash-outline" size={22} color={APP_DANGER} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Grabar de nuevo"
+          disabled={disabled}
+          onPress={handleRepeat}
+          className="h-12 flex-1 items-center justify-center rounded-2xl border active:opacity-80"
+          style={{
+            backgroundColor: APP_SURFACE,
+            borderColor: APP_BORDER,
+            opacity: disabled ? 0.55 : 1,
+          }}>
+          <Ionicons name="refresh-outline" size={22} color={APP_ACCENT} />
         </Pressable>
 
         <Pressable
@@ -145,15 +169,12 @@ export function VoiceReviewControls({
           accessibilityLabel="Enviar audio"
           disabled={disabled}
           onPress={handleSend}
-          className="min-h-[48px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl active:opacity-85"
+          className="h-12 flex-1 items-center justify-center rounded-2xl active:opacity-85"
           style={{
             backgroundColor: APP_ACCENT,
             opacity: disabled ? 0.55 : 1,
           }}>
-          <Ionicons name="paper-plane-outline" size={18} color={APP_ON_ACCENT} />
-          <Text className="text-[14px] font-semibold" style={{ color: APP_ON_ACCENT }}>
-            Enviar
-          </Text>
+          <Ionicons name="paper-plane" size={22} color={APP_ON_ACCENT} />
         </Pressable>
       </View>
     </View>

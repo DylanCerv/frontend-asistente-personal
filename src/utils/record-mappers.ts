@@ -2,7 +2,7 @@ import type { CalendarEvent, ReminderItem, TaskItem } from '@/types/assistant';
 import type { ApiRecord, UpdateRecordPayload } from '@/types/record-api';
 import type { MemoryRecord } from '@/types/record';
 import { normalizeTaskCategory } from '@/constants/categories';
-import { relativeDayLabel, todayIso } from '@/utils/date-utils';
+import { relativeDayLabel, toIsoDate, todayIso } from '@/utils/date-utils';
 
 function readString(data: Record<string, unknown>, key: string): string | undefined {
   const value = data[key];
@@ -15,8 +15,8 @@ function readStringArray(data: Record<string, unknown>, key: string): string[] {
   return value.filter((item): item is string => typeof item === 'string');
 }
 
-export function toScheduledAt(date: string | null | undefined): string {
-  if (!date) return todayIso();
+export function toScheduledAt(date: string | null | undefined): string | null {
+  if (!date) return null;
   return date.slice(0, 10);
 }
 
@@ -40,9 +40,9 @@ export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
     description: record.description ?? undefined,
     priority: record.priority ?? undefined,
     status: status === 'completed' ? 'completed' : 'pending',
-    scheduledAt: toScheduledAt(record.date),
+    scheduledAt: toScheduledAt(record.date) ?? undefined,
     dueAtIso: record.date ?? undefined,
-    dueLabel: record.date ? relativeDayLabel(toScheduledAt(record.date)) : undefined,
+    dueLabel: record.date ? relativeDayLabel(toScheduledAt(record.date)!) : undefined,
     category: normalizeTaskCategory(category),
     location,
     client: record.client ?? undefined,
@@ -65,7 +65,7 @@ export function memoryRecordToTask(record: MemoryRecord): TaskItem | null {
     description: record.description,
     dueLabel: record.dueLabel,
     dueAtIso: record.dueAtIso,
-    scheduledAt: record.scheduledAt ?? todayIso(),
+    scheduledAt: record.scheduledAt,
     completedAt: record.completedAt,
     createdAt: record.createdAt,
     priority: record.priority ?? 'medium',
@@ -109,16 +109,48 @@ export function buildRemindersFromRecords(records: MemoryRecord[]): ReminderItem
     }));
 }
 
+/**
+ * Status toggle patch. Open-ended tasks (no date) get anchored to the
+ * completion day so they appear in that day's history.
+ */
 export function buildRecordStatusPatch(
   record: ApiRecord,
   status: 'pending' | 'completed',
 ): UpdateRecordPayload {
   const data = { ...(record.data ?? {}) };
   data.status = status;
+
   if (status === 'completed') {
     data.completedAt = new Date().toISOString();
-  } else {
-    delete data.completedAt;
+
+    if (!record.date) {
+      data.wasOpenEnded = true;
+      const now = new Date();
+      const day = toIsoDate(now);
+      const offsetMinutes = -now.getTimezoneOffset();
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const abs = Math.abs(offsetMinutes);
+      const hours = String(Math.floor(abs / 60)).padStart(2, '0');
+      const minutes = String(abs % 60).padStart(2, '0');
+      return {
+        data,
+        date: `${day}T05:00:00${sign}${hours}:${minutes}`,
+      };
+    }
+
+    return { data };
   }
+
+  delete data.completedAt;
+
+  // Re-open: restore open-ended state if it was stamped only for completion history.
+  // Explicit false/null so backend merge overwrites previous values.
+  if (data.wasOpenEnded === true) {
+    data.wasOpenEnded = false;
+    data.completedAt = null;
+    return { data, date: null };
+  }
+
+  data.completedAt = null;
   return { data };
 }
