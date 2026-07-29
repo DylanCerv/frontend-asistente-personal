@@ -8,7 +8,7 @@ export default function SetupRedirect() {
   const { hasCompletedOnboarding } = useAppFlow();
 
   if (!isAuthenticated) {
-    return <Redirect href="/login" />;
+    return <Redirect href="/welcome" />;
   }
 
   if (!hasCompletedOnboarding) {

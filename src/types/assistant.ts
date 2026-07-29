@@ -27,10 +27,16 @@ export type CalendarEvent = {
   scheduledAt: string;
   dueAtIso?: string;
   time: string;
+  endTime?: string;
+  durationMinutes?: number;
   type: 'meeting' | 'reminder' | 'event';
   status: 'pending' | 'completed';
   location?: string;
   description?: string;
+  /** Origin of the event. Defaults to Kivo records when omitted. */
+  source?: 'kivo' | 'device';
+  readOnly?: boolean;
+  calendarName?: string;
 };
 
 export type ReminderItem = {

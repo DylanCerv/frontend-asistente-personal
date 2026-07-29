@@ -1,5 +1,1 @@
-import { Redirect } from 'expo-router';
-
-export default function TasksRedirect() {
-  return <Redirect href="/agenda" />;
-}
+export { default } from './agenda';

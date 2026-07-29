@@ -1,6 +1,6 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppLockPinRecovery } from '@/components/app-lock-pin-recovery';
 import { PinPad } from '@/components/app-lock-pin-pad';
@@ -29,7 +29,7 @@ export function AppLockScreen() {
   }
 
   return (
-    <ScreenSafeArea className="absolute inset-0 z-50 bg-canvas dark:bg-canvas-dark">
+    <ScreenSafeArea style={styles.lockOverlay}>
       <View className="flex-1 items-center justify-center gap-8 px-6">
         <View className="items-center gap-3">
           <View className="rounded-[26px] bg-surface p-2 shadow-sm dark:bg-surface-dark">
@@ -110,7 +110,7 @@ function PinUnlockView({
   }
 
   return (
-    <ScreenSafeArea className="absolute inset-0 z-50 bg-canvas dark:bg-canvas-dark">
+    <ScreenSafeArea style={styles.lockOverlay}>
       <View className="flex-1 justify-between px-6 pb-10 pt-8">
         <View className="items-center gap-3">
           <View className="rounded-[26px] bg-surface p-2 shadow-sm dark:bg-surface-dark">
@@ -158,3 +158,10 @@ function PinUnlockView({
     </ScreenSafeArea>
   );
 }
+
+const styles = StyleSheet.create({
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+  },
+});

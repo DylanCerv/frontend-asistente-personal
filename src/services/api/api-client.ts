@@ -12,13 +12,21 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   const authHeaders = skipAuth ? {} : await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      ...authHeaders,
-      ...headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: {
+        ...authHeaders,
+        ...headers,
+      },
+    });
+  } catch {
+    throw new ApiError(
+      'No se pudo conectar con el servidor. Revisa que el backend esté en marcha.',
+      0,
+    );
+  }
 
   const data = await response.json().catch(() => ({}));
 

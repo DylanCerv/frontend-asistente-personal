@@ -1,10 +1,24 @@
 import { getDueTodayRecords } from '@/services/reminders/reminder-rules';
+import type { TaskItem } from '@/types/assistant';
 import type { MemoryRecord } from '@/types/record';
-import { formatShortDate, todayIso } from '@/utils/date-utils';
+import { addDays, formatShortDate, todayIso } from '@/utils/date-utils';
+import {
+  getDayProgressPercent,
+  getFocusTask,
+  getFocusTaskDueLabel,
+} from '@/utils/focus-utils';
+import { memoryRecordToTask } from '@/utils/record-mappers';
 
 import {
-  WIDGET_DEEP_LINK,
+  WIDGET_DEEP_LINK_AGENDA,
+  WIDGET_DEEP_LINK_CAPTURE,
+  WIDGET_DEEP_LINK_FOCUS,
+  WIDGET_DEEP_LINK_REPORT,
   WIDGET_MAX_ITEMS,
+  type WidgetCapturePayload,
+  type WidgetFocusPointsPayload,
+  type WidgetHomePayload,
+  type WidgetPriorityPayload,
   type WidgetTodayItem,
   type WidgetTodayItemKind,
   type WidgetTodayPayload,
@@ -44,6 +58,27 @@ function mapRecordToWidgetItem(record: MemoryRecord): WidgetTodayItem {
   };
 }
 
+function recordsToTasks(records: MemoryRecord[]): TaskItem[] {
+  return records.map(memoryRecordToTask).filter((task): task is TaskItem => task !== null);
+}
+
+function countCompletedInRange(tasks: TaskItem[], startIso: string, endIso: string): number {
+  return tasks.filter((task) => {
+    if (task.status !== 'completed') return false;
+    const completedOn = task.completedAt?.slice(0, 10) ?? task.scheduledAt;
+    return completedOn >= startIso && completedOn <= endIso;
+  }).length;
+}
+
+function formatPointsValue(points: number): string {
+  if (points >= 1000) {
+    const thousands = points / 1000;
+    const rounded = Math.round(thousands * 10) / 10;
+    return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}k`;
+  }
+  return String(points);
+}
+
 export function buildTodayWidgetPayload(records: MemoryRecord[]): WidgetTodayPayload {
   const today = todayIso();
   const todayRecords = getDueTodayRecords(records, today).sort(compareTodayRecords);
@@ -66,7 +101,96 @@ export function buildTodayWidgetPayload(records: MemoryRecord[]): WidgetTodayPay
     overflowCount,
     emptyMessage: todayRecords.length === 0 ? 'Habla para organizar tu día' : undefined,
     enabled: true,
-    deepLink: WIDGET_DEEP_LINK,
+    deepLink: WIDGET_DEEP_LINK_AGENDA,
+  };
+}
+
+export function buildPriorityWidgetPayload(tasks: TaskItem[]): WidgetPriorityPayload {
+  const focusTask = getFocusTask(tasks);
+  const progressPercent = getDayProgressPercent(tasks);
+
+  if (!focusTask) {
+    return {
+      label: 'PRIORIDAD ACTUAL',
+      title: 'Nada urgente',
+      dueLabel: 'Sin tareas pendientes',
+      progressPercent,
+      emptyMessage: 'Habla para organizar tu día',
+      deepLink: WIDGET_DEEP_LINK_FOCUS,
+    };
+  }
+
+  return {
+    label: 'PRIORIDAD ACTUAL',
+    title: focusTask.title,
+    dueLabel: getFocusTaskDueLabel(focusTask),
+    progressPercent,
+    deepLink: WIDGET_DEEP_LINK_FOCUS,
+  };
+}
+
+export function buildCaptureWidgetPayload(): WidgetCapturePayload {
+  return {
+    title: 'Quick Capture',
+    subtitle: 'TAP TO RECORD',
+    deepLink: WIDGET_DEEP_LINK_CAPTURE,
+  };
+}
+
+export function buildFocusPointsWidgetPayload(tasks: TaskItem[]): WidgetFocusPointsPayload {
+  const today = todayIso();
+  const currentStart = addDays(today, -6);
+  const previousEnd = addDays(today, -7);
+  const previousStart = addDays(today, -13);
+
+  const currentCompleted = countCompletedInRange(tasks, currentStart, today);
+  const previousCompleted = countCompletedInRange(tasks, previousStart, previousEnd);
+  const points = currentCompleted * 100;
+  const progressPercent = getDayProgressPercent(tasks);
+
+  let deltaLabel = '—';
+  let deltaPositive = true;
+
+  if (previousCompleted === 0 && currentCompleted > 0) {
+    deltaLabel = '+100%';
+    deltaPositive = true;
+  } else if (previousCompleted > 0) {
+    const delta = Math.round(((currentCompleted - previousCompleted) / previousCompleted) * 100);
+    deltaLabel = `${delta > 0 ? '+' : ''}${delta}%`;
+    deltaPositive = delta >= 0;
+  } else if (currentCompleted === 0) {
+    deltaLabel = '0%';
+    deltaPositive = true;
+  }
+
+  return {
+    valueLabel: formatPointsValue(points),
+    label: 'Focus Points',
+    deltaLabel,
+    deltaPositive,
+    progressPercent,
+    emptyMessage: currentCompleted === 0 ? 'Completa tareas para sumar puntos' : undefined,
+    deepLink: WIDGET_DEEP_LINK_REPORT,
+  };
+}
+
+function baseCapture(): WidgetCapturePayload {
+  return buildCaptureWidgetPayload();
+}
+
+export function buildHomeWidgetsPayload(records: MemoryRecord[]): WidgetHomePayload {
+  const tasks = recordsToTasks(records);
+  const updatedAt = new Date().toISOString();
+
+  return {
+    version: 2,
+    updatedAt,
+    enabled: true,
+    signedIn: true,
+    today: buildTodayWidgetPayload(records),
+    priority: buildPriorityWidgetPayload(tasks),
+    capture: baseCapture(),
+    focusPoints: buildFocusPointsWidgetPayload(tasks),
   };
 }
 
@@ -80,7 +204,7 @@ export function buildDisabledWidgetPayload(): WidgetTodayPayload {
     overflowCount: 0,
     emptyMessage: 'Actívalo en Perfil → Accesos rápidos',
     enabled: false,
-    deepLink: WIDGET_DEEP_LINK,
+    deepLink: WIDGET_DEEP_LINK_AGENDA,
   };
 }
 
@@ -94,6 +218,68 @@ export function buildSignedOutWidgetPayload(): WidgetTodayPayload {
     overflowCount: 0,
     emptyMessage: 'Inicia sesión para ver tu día',
     enabled: false,
-    deepLink: WIDGET_DEEP_LINK,
+    deepLink: WIDGET_DEEP_LINK_AGENDA,
+  };
+}
+
+export function buildDisabledHomeWidgetsPayload(): WidgetHomePayload {
+  const updatedAt = new Date().toISOString();
+  const today = buildDisabledWidgetPayload();
+
+  return {
+    version: 2,
+    updatedAt,
+    enabled: false,
+    signedIn: true,
+    today,
+    priority: {
+      label: 'PRIORIDAD ACTUAL',
+      title: 'Widget desactivado',
+      dueLabel: 'Actívalo en Perfil',
+      progressPercent: 0,
+      emptyMessage: 'Actívalo en Perfil → Accesos rápidos',
+      deepLink: WIDGET_DEEP_LINK_FOCUS,
+    },
+    capture: baseCapture(),
+    focusPoints: {
+      valueLabel: '—',
+      label: 'Focus Points',
+      deltaLabel: '—',
+      deltaPositive: true,
+      progressPercent: 0,
+      emptyMessage: 'Actívalo en Perfil → Accesos rápidos',
+      deepLink: WIDGET_DEEP_LINK_REPORT,
+    },
+  };
+}
+
+export function buildSignedOutHomeWidgetsPayload(): WidgetHomePayload {
+  const updatedAt = new Date().toISOString();
+  const today = buildSignedOutWidgetPayload();
+
+  return {
+    version: 2,
+    updatedAt,
+    enabled: false,
+    signedIn: false,
+    today,
+    priority: {
+      label: 'PRIORIDAD ACTUAL',
+      title: 'Kivo',
+      dueLabel: 'Inicia sesión',
+      progressPercent: 0,
+      emptyMessage: 'Inicia sesión para ver tu prioridad',
+      deepLink: WIDGET_DEEP_LINK_FOCUS,
+    },
+    capture: baseCapture(),
+    focusPoints: {
+      valueLabel: '—',
+      label: 'Focus Points',
+      deltaLabel: '—',
+      deltaPositive: true,
+      progressPercent: 0,
+      emptyMessage: 'Inicia sesión para ver tus puntos',
+      deepLink: WIDGET_DEEP_LINK_REPORT,
+    },
   };
 }

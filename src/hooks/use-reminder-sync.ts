@@ -14,6 +14,8 @@ export function useReminderSync() {
     reminderNotifications,
     pushNotifications,
     reminderAlertStyle,
+    reminderAlertSound,
+    reminderAlertVibration,
     setPushNotifications,
     setReminderNotifications,
   } = useUserPreferences();
@@ -46,6 +48,17 @@ export function useReminderSync() {
   ]);
 
   useEffect(() => {
-    void syncReminderNotifications(records, remindersActive, reminderAlertStyle);
-  }, [records, remindersActive, reminderAlertStyle]);
+    void syncReminderNotifications(records, remindersActive, reminderAlertStyle, {
+      // Morning digest is bundled with smart reminders at 5:00 am.
+      dailySummaryEnabled: remindersActive,
+      soundId: reminderAlertSound,
+      vibrationId: reminderAlertVibration,
+    });
+  }, [
+    records,
+    remindersActive,
+    reminderAlertStyle,
+    reminderAlertSound,
+    reminderAlertVibration,
+  ]);
 }

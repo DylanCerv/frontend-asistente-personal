@@ -3,23 +3,33 @@ import { Modal, Platform, Pressable, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { KivoLogo } from '@/components/kivo-logo';
+import { APP_ACCENT } from '@/constants/app-colors';
 
 type WidgetSetupSheetProps = {
   visible: boolean;
   onClose: () => void;
 };
 
+const WIDGET_NAMES = [
+  'Agenda de hoy',
+  'Prioridad actual',
+  'Quick Capture',
+  'Focus Points',
+] as const;
+
 const ANDROID_STEPS = [
+  'Activa los widgets con el interruptor de Accesos rápidos.',
   'Mantén presionado un espacio vacío en tu pantalla de inicio.',
   'Toca "Widgets" y busca "Kivo".',
-  'Elige "Agenda de hoy" y arrástralo donde quieras.',
-  'Listo — verás tus tareas y reuniones del día.',
+  'Elige Agenda de hoy, Prioridad actual, Quick Capture o Focus Points.',
+  'Arrástralos donde quieras — todos usan el estilo oscuro de Kivo.',
 ] as const;
 
 const IOS_STEPS = [
+  'Activa los widgets con el interruptor de Accesos rápidos.',
   'Mantén presionado cualquier área vacía de la pantalla de inicio.',
   'Toca el botón "+" (esquina superior izquierda).',
-  'Busca "Kivo" y elige "Agenda de hoy".',
+  'Busca "Kivo" y elige el widget que quieras (Agenda, Prioridad, Capture o Focus Points).',
   'Selecciona el tamaño y toca "Agregar widget".',
 ] as const;
 
@@ -36,12 +46,24 @@ export function WidgetSetupSheet({ visible, onClose }: WidgetSetupSheetProps) {
               <KivoLogo size={48} />
             </View>
             <Text className="text-center text-xl font-bold text-foreground dark:text-foreground-dark">
-              Agrega el widget de hoy
+              Widgets de Kivo
             </Text>
             <Text className="text-center text-sm leading-6 text-subtle dark:text-subtle-dark">
-              Mira tu agenda del día sin abrir Kivo. Los títulos serán visibles en tu pantalla de
-              inicio.
+              Cuatro widgets en modo oscuro para tu pantalla de inicio: agenda, prioridad, captura
+              rápida y focus points.
             </Text>
+          </View>
+
+          <View className="flex-row flex-wrap gap-2">
+            {WIDGET_NAMES.map((name) => (
+              <View
+                key={name}
+                className="rounded-full border border-border px-3 py-1.5 dark:border-border-dark">
+                <Text className="text-xs font-semibold text-foreground dark:text-foreground-dark">
+                  {name}
+                </Text>
+              </View>
+            ))}
           </View>
 
           <View className="gap-3 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
@@ -58,10 +80,10 @@ export function WidgetSetupSheet({ visible, onClose }: WidgetSetupSheetProps) {
           </View>
 
           <View className="flex-row items-center gap-2 rounded-2xl bg-surface-soft px-4 py-3 dark:bg-surface-soft-dark">
-            <Ionicons name="information-circle-outline" size={18} color="#7C3AED" />
+            <Ionicons name="information-circle-outline" size={18} color={APP_ACCENT} />
             <Text className="flex-1 text-xs leading-5 text-subtle dark:text-subtle-dark">
               El sistema no permite agregar widgets automáticamente. Debes hacerlo manualmente una
-              vez.
+              vez. Requiere un build nativo de Kivo (no Expo Go).
             </Text>
           </View>
 

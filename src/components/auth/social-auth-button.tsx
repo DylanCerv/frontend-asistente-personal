@@ -1,62 +1,40 @@
-import Ionicons from '@react-native-vector-icons/ionicons';
-import type { ComponentProps } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text } from 'react-native';
 
 import { GoogleLogoIcon } from '@/components/auth/google-logo-icon';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
-type SocialProvider = 'google' | 'apple';
-
-type SocialAuthButtonProps = Omit<ComponentProps<typeof Pressable>, 'children'> & {
-  provider: SocialProvider;
+type SocialAuthButtonProps = {
   label: string;
+  onPress?: () => void;
   loading?: boolean;
+  disabled?: boolean;
+  variant?: 'dark' | 'light';
 };
 
 export function SocialAuthButton({
-  provider,
   label,
+  onPress,
   loading = false,
-  disabled,
-  className,
-  ...props
+  disabled = false,
+  variant = 'dark',
 }: SocialAuthButtonProps) {
-  const isDark = useColorScheme() === 'dark';
   const isDisabled = disabled || loading;
-  const isGoogle = provider === 'google';
-  const isApple = provider === 'apple';
-
-  const googleContainerClass =
-    'border border-[#DADCE0] bg-white/95 shadow-sm dark:border-border-dark dark:bg-surface-dark';
-  const appleContainerClass = isDark
-    ? 'border border-border bg-white dark:border-border-dark'
-    : 'bg-black';
-  const appleLabelClass = isDark ? 'text-black' : 'text-white';
-  const appleIconColor = isDark ? '#000000' : '#FFFFFF';
+  const isLight = variant === 'light';
 
   return (
     <Pressable
       accessibilityRole="button"
       disabled={isDisabled}
-      className={`min-h-[56px] flex-row items-center justify-center rounded-[20px] px-5 active:opacity-90 ${
-        isGoogle ? googleContainerClass : appleContainerClass
-      } ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
-      {...props}>
+      onPress={onPress}
+      className={`min-h-[52px] flex-row items-center justify-center gap-3 rounded-2xl px-5 active:opacity-85 ${
+        isLight ? 'bg-white' : 'bg-[#2A2A2A]'
+      } ${isDisabled ? 'opacity-50' : ''}`}>
       {loading ? (
-        <ActivityIndicator color={isGoogle ? '#4285F4' : appleIconColor} />
+        <ActivityIndicator color={isLight ? '#1A1A1A' : '#C4B5FD'} />
       ) : (
         <>
-          <View className="absolute left-5 h-6 w-6 items-center justify-center">
-            {isGoogle ? (
-              <GoogleLogoIcon size={22} />
-            ) : (
-              <Ionicons name="logo-apple" size={22} color={appleIconColor} />
-            )}
-          </View>
+          <GoogleLogoIcon size={20} />
           <Text
-            className={`text-base font-semibold tracking-tight ${
-              isApple ? appleLabelClass : 'text-[#3C4043] dark:text-foreground-dark'
-            }`}>
+            className={`text-[15px] font-semibold ${isLight ? 'text-[#1A1A1A]' : 'text-white'}`}>
             {label}
           </Text>
         </>

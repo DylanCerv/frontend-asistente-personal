@@ -5,11 +5,11 @@ import { useAssistant } from '@/context/assistant-context';
 import { useAuth } from '@/context/auth-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import {
-  buildDisabledWidgetPayload,
-  buildSignedOutWidgetPayload,
-  buildTodayWidgetPayload,
+  buildDisabledHomeWidgetsPayload,
+  buildHomeWidgetsPayload,
+  buildSignedOutHomeWidgetsPayload,
 } from '@/services/widgets/widget-payload';
-import { syncHomeWidget } from '@/services/widgets/widget-storage';
+import { syncHomeWidgets } from '@/services/widgets/widget-storage';
 
 export function useWidgetSync() {
   const { records } = useAssistant();
@@ -22,16 +22,16 @@ export function useWidgetSync() {
 
     async function syncWidget() {
       if (!isAuthenticated) {
-        await syncHomeWidget(buildSignedOutWidgetPayload());
+        await syncHomeWidgets(buildSignedOutHomeWidgetsPayload());
         return;
       }
 
       if (!homeWidgetEnabled) {
-        await syncHomeWidget(buildDisabledWidgetPayload());
+        await syncHomeWidgets(buildDisabledHomeWidgetsPayload());
         return;
       }
 
-      await syncHomeWidget(buildTodayWidgetPayload(records));
+      await syncHomeWidgets(buildHomeWidgetsPayload(records));
     }
 
     void syncWidget();
@@ -49,7 +49,7 @@ export function useWidgetSync() {
       }
 
       if (nextState === 'background' && isAuthenticated && homeWidgetEnabled) {
-        void syncHomeWidget(buildTodayWidgetPayload(records));
+        void syncHomeWidgets(buildHomeWidgetsPayload(records));
       }
     });
 

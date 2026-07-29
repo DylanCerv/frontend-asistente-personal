@@ -7,7 +7,7 @@ import { LoginScreen } from '@/screens/auth/LoginScreen';
 
 export default function LoginRoute() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, signIn } = useAuth();
+  const { isAuthenticated, isLoading, signIn, signInWithGoogle } = useAuth();
   const { hasCompletedOnboarding, completeOnboarding } = useAppFlow();
   const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +26,25 @@ export default function LoginRoute() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    try {
+      setError(null);
+      await signInWithGoogle();
+      await completeOnboarding();
+      router.replace('/(main)');
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'No se pudo iniciar sesión con Google',
+      );
+    }
+  }
+
   return (
     <LoginScreen
       onSignIn={handleSignIn}
+      onGoogleSignIn={handleGoogleSignIn}
       onRegister={() => router.push('/register')}
       onBackFromEmailForm={() => setError(null)}
       loading={isLoading}

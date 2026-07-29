@@ -1,15 +1,19 @@
 /** @type {import('@bacons/apple-targets/app.plugin').ConfigFunction} */
 module.exports = (config) => ({
   type: 'widget',
-  name: 'Agenda de hoy',
-  displayName: 'Agenda de hoy',
+  name: 'Kivo Widgets',
+  displayName: 'Kivo',
   deploymentTarget: '17.0',
   colors: {
-    $accent: '#7C3AED',
-    $widgetBackground: '#FFFFFF',
-    brand: '#7C3AED',
-    subtle: '#64748B',
-    foreground: '#0F172A',
+    $accent: '#C4B5FD',
+    $widgetBackground: '#171717',
+    brand: '#C4B5FD',
+    teal: '#22D3EE',
+    subtle: '#8A8A8A',
+    foreground: '#FFFFFF',
+    surface: '#171717',
+    canvas: '#050505',
+    track: '#2A2A2A',
   },
   entitlements: {
     'com.apple.security.application-groups':

@@ -26,6 +26,19 @@ const DEFAULT_ACCENT: ScreenAccent = {
   border: 'rgba(124, 58, 237, 0.28)',
 };
 
+const ON_LIGHT_ACCENT = '#1A0B2E';
+const ON_DARK_ACCENT = '#FFFFFF';
+
+function onAccentTextColor(hex: string): string {
+  const raw = hex.replace('#', '');
+  if (raw.length < 6) return ON_DARK_ACCENT;
+  const r = Number.parseInt(raw.slice(0, 2), 16);
+  const g = Number.parseInt(raw.slice(2, 4), 16);
+  const b = Number.parseInt(raw.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? ON_LIGHT_ACCENT : ON_DARK_ACCENT;
+}
+
 type AgendaCalendarProps = {
   selectedDates: string[];
   markedDates?: string[];
@@ -203,9 +216,14 @@ export function AgendaCalendar({
             const isRangeAnchor = rangeAnchor === day;
             const isTodayDate = day === todayIso();
             const hasItems = markedSet.has(day);
+            const selectedTextColor = onAccentTextColor(accent.main);
 
             const dayStyle = selected
-              ? { backgroundColor: accent.main }
+              ? {
+                  backgroundColor: accent.main,
+                  borderWidth: isTodayDate ? 2 : 0,
+                  borderColor: isTodayDate ? '#FFFFFF' : undefined,
+                }
               : isRangeAnchor
                 ? {
                     borderWidth: 2,
@@ -216,16 +234,18 @@ export function AgendaCalendar({
                 : isTodayDate
                   ? {
                       borderWidth: 2,
-                      borderColor: accent.main,
-                      backgroundColor: accent.soft,
+                      borderColor: '#FFFFFF',
+                      backgroundColor: 'rgba(255,255,255,0.12)',
                     }
                   : undefined;
 
             const dayTextColor = selected
-              ? '#FFFFFF'
-              : isTodayDate || isRangeAnchor
-                ? accent.main
-                : undefined;
+              ? selectedTextColor
+              : isTodayDate
+                ? '#FFFFFF'
+                : isRangeAnchor
+                  ? accent.main
+                  : undefined;
 
             return (
               <Pressable
@@ -248,15 +268,21 @@ export function AgendaCalendar({
                   </Text>
                   {isTodayDate ? (
                     <Text
-                      className="text-[8px] font-bold uppercase leading-none"
-                      style={{ color: selected ? 'rgba(255,255,255,0.9)' : accent.main }}>
+                      className="text-[8px] font-extrabold uppercase leading-none"
+                      style={{ color: selected ? selectedTextColor : '#FFFFFF' }}>
                       Hoy
                     </Text>
                   ) : null}
                   {hasItems ? (
                     <View
                       className="absolute bottom-0.5 h-1 w-1 rounded-full"
-                      style={{ backgroundColor: selected ? '#FFFFFF' : accent.main }}
+                      style={{
+                        backgroundColor: selected
+                          ? selectedTextColor
+                          : isTodayDate
+                            ? '#FFFFFF'
+                            : accent.main,
+                      }}
                     />
                   ) : null}
                 </View>
@@ -273,6 +299,22 @@ export function AgendaCalendar({
         <Text className="flex-1 text-xs font-medium text-subtle dark:text-subtle-dark">
           {label}
         </Text>
+        {selectedDates.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Borrar días seleccionados"
+            onPress={() => {
+              setRangeAnchor(null);
+              onChange([]);
+            }}
+            className="flex-row items-center gap-1 rounded-full px-2.5 py-1 active:opacity-80"
+            style={{ backgroundColor: accent.soft }}>
+            <Ionicons name="close-circle-outline" size={14} color={accent.main} />
+            <Text className="text-[11px] font-semibold" style={{ color: accent.main }}>
+              Limpiar
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

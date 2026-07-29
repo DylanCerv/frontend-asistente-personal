@@ -1,7 +1,7 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -18,6 +18,7 @@ import {
   AppLockMethodPicker,
 } from '@/components/app-lock-method-picker';
 import { AppLockDelayPicker } from '@/components/app-lock-delay-picker';
+import { FocusSettingsPanel } from '@/components/focus/focus-settings-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
 import {
@@ -27,7 +28,13 @@ import {
 } from '@/constants/subscription-plans';
 import { useAuth } from '@/context/auth-context';
 import { useSubscription } from '@/context/subscription-context';
-import { useUserPreferences, type AppLanguage, type ReminderAlertStyle } from '@/context/user-preferences-context';
+import { useUserPreferences, type ReminderAlertStyle } from '@/context/user-preferences-context';
+import {
+  ALERT_SOUND_PRESETS,
+  ALERT_VIBRATION_PRESETS,
+  type ReminderAlertSoundId,
+  type ReminderAlertVibrationId,
+} from '@/services/reminders/reminder-alert-presets';
 import { useAppLockMethodSetup } from '@/hooks/use-app-lock-method-setup';
 import {
   cancelAppReminders,
@@ -41,8 +48,8 @@ export type ProfileSheetType =
   | 'personal'
   | 'security'
   | 'notifications'
-  | 'language'
   | 'subscription'
+  | 'focus'
   | null;
 
 type ProfileSettingsSheetProps = {
@@ -71,8 +78,8 @@ export function ProfileSettingsSheet({ type, onClose }: ProfileSettingsSheetProp
           {type === 'personal' ? <PersonalDataForm onClose={onClose} /> : null}
           {type === 'security' ? <SecuritySettings /> : null}
           {type === 'notifications' ? <NotificationSettings /> : null}
-          {type === 'language' ? <LanguageSettings /> : null}
           {type === 'subscription' ? <SubscriptionSettings /> : null}
+          {type === 'focus' ? <FocusSettingsPanel /> : null}
         </ScrollView>
       </ScreenSafeArea>
     </Modal>
@@ -83,8 +90,8 @@ const titles: Record<Exclude<ProfileSheetType, null>, string> = {
   personal: 'Datos personales',
   security: 'Seguridad',
   notifications: 'Notificaciones',
-  language: 'Idioma',
   subscription: 'Suscripción',
+  focus: 'Modo Focus',
 };
 
 function PersonalDataForm({ onClose }: { onClose: () => void }) {
@@ -301,12 +308,17 @@ function NotificationSettings() {
     pushNotifications,
     reminderNotifications,
     reminderAlertStyle,
+    reminderAlertSound,
+    reminderAlertVibration,
     setPushNotifications,
     setReminderNotifications,
     setReminderAlertStyle,
+    setReminderAlertSound,
+    setReminderAlertVibration,
   } = useUserPreferences();
 
   const remindersAvailable = pushNotifications;
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   async function handlePushChange(value: boolean) {
     if (!value) {
@@ -351,11 +363,44 @@ function NotificationSettings() {
     await setReminderNotifications(true);
   }
 
+  async function handleSendTestAlerts() {
+    setIsSendingTest(true);
+    try {
+      const { canScheduleLocalNotifications, presentTestKivoAlerts } = await import(
+        '@/services/reminders/reminder-notifications'
+      );
+      if (!canScheduleLocalNotifications()) {
+        showAppAlert(
+          'Build nativo requerido',
+          'Las notificaciones del sistema solo funcionan en APK / dev client (EXPO_PUBLIC_NATIVE_BUILD=1), no en Expo Go.',
+        );
+        return;
+      }
+      const ok = await presentTestKivoAlerts(reminderAlertStyle, {
+        soundId: reminderAlertSound,
+        vibrationId: reminderAlertVibration,
+      });
+      if (!ok) {
+        showAppAlert(
+          'Permiso requerido',
+          'Activa las notificaciones del celular para probar las alertas.',
+        );
+        return;
+      }
+      showAppAlert(
+        'Alertas de prueba',
+        'Se programó una alarma crítica a pantalla completa (~5 s) y un resumen del asistente. Bloquea el teléfono para probarla.',
+      );
+    } finally {
+      setIsSendingTest(false);
+    }
+  }
+
   return (
     <View className="gap-3">
       <SettingToggle
-        label="Notificaciones push"
-        description="Permite que Kivo use las notificaciones y alertas del celular"
+        label="Notificaciones del celular"
+        description="Permite que Kivo muestre alertas y recordatorios locales en el teléfono"
         value={pushNotifications}
         onValueChange={handlePushChange}
       />
@@ -363,30 +408,58 @@ function NotificationSettings() {
         label="Recordatorios inteligentes"
         description={
           remindersAvailable
-            ? 'Alarma a la hora exacta y avisos suaves desde las 5:00 am'
+            ? 'Alarmas a la hora exacta (pantalla completa) y aviso matutino a las 5:00 am'
             : 'Requiere permisos de notificaciones del celular'
         }
         value={reminderNotifications && remindersAvailable}
         onValueChange={handleReminderChange}
       />
       {reminderNotifications && remindersAvailable ? (
-        <ReminderAlertStylePicker value={reminderAlertStyle} onChange={setReminderAlertStyle} />
+        <>
+          <ReminderAlertStylePicker value={reminderAlertStyle} onChange={setReminderAlertStyle} />
+          <ReminderAlertSoundPicker
+            value={reminderAlertSound}
+            enabled={reminderAlertStyle === 'sound' || reminderAlertStyle === 'both'}
+            onChange={async (id) => {
+              await setReminderAlertSound(id);
+              const { previewAlertSound } = await import(
+                '@/services/reminders/preview-alert-media'
+              );
+              await previewAlertSound(id);
+            }}
+          />
+          <ReminderAlertVibrationPicker
+            value={reminderAlertVibration}
+            enabled={reminderAlertStyle === 'vibration' || reminderAlertStyle === 'both'}
+            onChange={async (id) => {
+              await setReminderAlertVibration(id);
+              const { previewAlertVibration } = await import(
+                '@/services/reminders/preview-alert-media'
+              );
+              previewAlertVibration(id);
+            }}
+          />
+        </>
       ) : null}
       <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
-        <Text className="text-xs font-semibold text-foreground dark:text-foreground-dark">
-          Niveles de alerta
-        </Text>
-        <Text className="mt-2 text-xs leading-5 text-subtle dark:text-subtle-dark">
-          Con hora exacta (ej. 7:30 pm): alerta fuerte en pantalla bloqueada.{'\n'}
-          Solo día (ej. el sábado ir a la peluquería): aviso suave desde las 5:00 am.
-        </Text>
-      </View>
-      <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
         <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
-          Si niegas los permisos del celular, las notificaciones push se desactivan automáticamente.
-          Los recordatorios solo funcionan con Kivo instalado (no en Expo Go).
+          Hora exacta: alarma a pantalla completa. Matutino (5:00 am): resumen del día y avisos
+          suaves de tareas sin hora. Si niegas el permiso, las notificaciones se desactivan.
+          Requiere APK (no Expo Go).
         </Text>
       </View>
+      {__DEV__ ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={isSendingTest}
+          onPress={() => void handleSendTestAlerts()}
+          className="min-h-[48px] items-center justify-center rounded-2xl bg-canvas active:opacity-90 dark:bg-canvas-dark"
+          style={{ opacity: isSendingTest ? 0.6 : 1 }}>
+          <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+            {isSendingTest ? 'Enviando…' : 'Enviar alertas de prueba (DEV)'}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -450,34 +523,251 @@ function ReminderAlertStylePicker({ value, onChange }: ReminderAlertStylePickerP
   );
 }
 
-function LanguageSettings() {
-  const { language, setLanguage } = useUserPreferences();
+type ReminderAlertSoundPickerProps = {
+  value: ReminderAlertSoundId;
+  enabled: boolean;
+  onChange: (value: ReminderAlertSoundId) => Promise<void>;
+};
 
-  const options: { id: AppLanguage; label: string }[] = [
-    { id: 'es', label: 'Español' },
-    { id: 'en', label: 'English' },
-  ];
+function ReminderAlertSoundPicker({ value, enabled, onChange }: ReminderAlertSoundPickerProps) {
+  const [customLabel, setCustomLabel] = useState<string | null>(null);
+  const [systemLabel, setSystemLabel] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const { getAlertSoundDisplayLabel } = await import('@/services/reminders/alert-sound-uri');
+      setCustomLabel(await getAlertSoundDisplayLabel('custom'));
+      setSystemLabel(await getAlertSoundDisplayLabel('system'));
+    })();
+  }, [value]);
+
+  if (!enabled) return null;
+
+  async function selectPreset(id: ReminderAlertSoundId) {
+    await onChange(id);
+  }
+
+  async function resetSystemToDefault() {
+    setBusy(true);
+    try {
+      const { clearSystemAlertSoundOverride } = await import('@/services/reminders/alert-sound-uri');
+      await clearSystemAlertSoundOverride();
+      setSystemLabel(null);
+      await onChange('system');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function selectCustomFile() {
+    setBusy(true);
+    try {
+      const { pickCustomAlertSoundFile } = await import('@/services/reminders/pick-alert-sound');
+      const picked = await pickCustomAlertSoundFile();
+      if (!picked) return;
+      setCustomLabel(picked.name);
+      await onChange('custom');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pickSystemTone() {
+    setBusy(true);
+    try {
+      const { canUseSystemRingtonePicker } = await import('@/services/reminders/alert-sound-uri');
+      if (!canUseSystemRingtonePicker()) {
+        showAppAlert(
+          'Build nativo requerido',
+          'Elegir un tono del sistema solo está disponible en la APK / dev client, no en Expo Go.',
+        );
+        return;
+      }
+      const { pickSystemRingtone } = await import('@/services/reminders/pick-alert-sound');
+      const picked = await pickSystemRingtone();
+      if (!picked) return;
+      setSystemLabel(picked.name);
+      await onChange('system');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <View className="gap-2">
-      {options.map((option) => (
+    <View className="gap-2 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
+      <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+        Tono de alerta
+      </Text>
+      <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+        Sistema usa el tono de notificación del celular (puedes elegir otro tono del SO). Kivo es el
+        tono de la app; Archivo es un audio tuyo.
+      </Text>
+      <View className="mt-1 gap-2" style={{ opacity: busy ? 0.6 : 1 }}>
+        {ALERT_SOUND_PRESETS.map((option) => {
+          const selected = value === option.id;
+          const systemSubtitle =
+            option.id === 'system'
+              ? (systemLabel ?? 'Tono de notificación del sistema operativo')
+              : option.description;
+          return (
+            <View key={option.id} className="gap-2">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                disabled={busy}
+                onPress={() => void selectPreset(option.id)}
+                className={`flex-row items-center gap-3 rounded-2xl border px-3 py-3 active:opacity-85 ${
+                  selected
+                    ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
+                    : 'border-border bg-canvas dark:border-border-dark dark:bg-canvas-dark'
+                }`}>
+                <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                  <Ionicons
+                    name={option.id === 'system' ? 'phone-portrait-outline' : 'musical-notes-outline'}
+                    size={18}
+                    color={selected ? '#7C3AED' : '#6B6475'}
+                  />
+                </View>
+                <View className="flex-1 gap-0.5">
+                  <Text
+                    className={`text-sm font-semibold ${
+                      selected
+                        ? 'text-brand dark:text-brand-dark'
+                        : 'text-foreground dark:text-foreground-dark'
+                    }`}>
+                    {option.label}
+                  </Text>
+                  <Text className="text-xs text-subtle dark:text-subtle-dark">{systemSubtitle}</Text>
+                </View>
+                {selected ? <Ionicons name="checkmark-circle" size={20} color="#7C3AED" /> : null}
+              </Pressable>
+              {option.id === 'system' && selected ? (
+                <View className="ml-12 gap-2">
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={() => void pickSystemTone()}
+                    className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-2 active:opacity-85 dark:border-border-dark">
+                    <Ionicons name="notifications-outline" size={16} color="#7C3AED" />
+                    <Text className="flex-1 text-xs font-medium text-brand dark:text-brand-dark">
+                      Elegir tono del sistema…
+                    </Text>
+                  </Pressable>
+                  {systemLabel ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={busy}
+                      onPress={() => void resetSystemToDefault()}
+                      className="flex-row items-center gap-2 px-1 py-1 active:opacity-85">
+                      <Text className="text-xs text-subtle dark:text-subtle-dark">
+                        Usar tono predeterminado del SO
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
+
         <Pressable
-          key={option.id}
           accessibilityRole="button"
-          onPress={() => setLanguage(option.id)}
-          className={`flex-row items-center justify-between rounded-2xl border p-4 ${
-            language === option.id
+          accessibilityState={{ selected: value === 'custom' }}
+          disabled={busy}
+          onPress={() => void selectCustomFile()}
+          className={`flex-row items-center gap-3 rounded-2xl border px-3 py-3 active:opacity-85 ${
+            value === 'custom'
               ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
-              : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
+              : 'border-border bg-canvas dark:border-border-dark dark:bg-canvas-dark'
           }`}>
-          <Text className="text-[15px] font-medium text-foreground dark:text-foreground-dark">
-            {option.label}
-          </Text>
-          {language === option.id ? (
-            <Ionicons name="checkmark-circle" size={22} color="#7C3AED" />
+          <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+            <Ionicons
+              name="folder-open-outline"
+              size={18}
+              color={value === 'custom' ? '#7C3AED' : '#6B6475'}
+            />
+          </View>
+          <View className="flex-1 gap-0.5">
+            <Text
+              className={`text-sm font-semibold ${
+                value === 'custom'
+                  ? 'text-brand dark:text-brand-dark'
+                  : 'text-foreground dark:text-foreground-dark'
+              }`}>
+              Archivo…
+            </Text>
+            <Text className="text-xs text-subtle dark:text-subtle-dark">
+              {customLabel ?? 'Elige un audio de tu almacenamiento'}
+            </Text>
+          </View>
+          {value === 'custom' ? (
+            <Ionicons name="checkmark-circle" size={20} color="#7C3AED" />
           ) : null}
         </Pressable>
-      ))}
+      </View>
+    </View>
+  );
+}
+
+type ReminderAlertVibrationPickerProps = {
+  value: ReminderAlertVibrationId;
+  enabled: boolean;
+  onChange: (value: ReminderAlertVibrationId) => Promise<void>;
+};
+
+function ReminderAlertVibrationPicker({
+  value,
+  enabled,
+  onChange,
+}: ReminderAlertVibrationPickerProps) {
+  if (!enabled) return null;
+
+  return (
+    <View className="gap-2 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
+      <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+        Patrón de vibración
+      </Text>
+      <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
+        Ritmos claramente distintos: un toque, doble pulso o patrón de alarma.
+      </Text>
+      <View className="mt-1 gap-2">
+        {ALERT_VIBRATION_PRESETS.map((option) => {
+          const selected = value === option.id;
+          return (
+            <Pressable
+              key={option.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => void onChange(option.id)}
+              className={`flex-row items-center gap-3 rounded-2xl border px-3 py-3 active:opacity-85 ${
+                selected
+                  ? 'border-brand bg-surface-soft dark:border-brand-dark dark:bg-surface-soft-dark'
+                  : 'border-border bg-canvas dark:border-border-dark dark:bg-canvas-dark'
+              }`}>
+              <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
+                <Ionicons
+                  name="pulse-outline"
+                  size={18}
+                  color={selected ? '#7C3AED' : '#6B6475'}
+                />
+              </View>
+              <View className="flex-1 gap-0.5">
+                <Text
+                  className={`text-sm font-semibold ${
+                    selected
+                      ? 'text-brand dark:text-brand-dark'
+                      : 'text-foreground dark:text-foreground-dark'
+                  }`}>
+                  {option.label}
+                </Text>
+                <Text className="text-xs text-subtle dark:text-subtle-dark">{option.description}</Text>
+              </View>
+              {selected ? <Ionicons name="checkmark-circle" size={20} color="#7C3AED" /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }

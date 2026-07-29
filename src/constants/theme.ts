@@ -1,48 +1,46 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Below are the colors that are used in the app.
+ * The app is dark-first (#050505). Light tokens mirror dark to avoid flashes.
  */
 
 import { Platform } from 'react-native';
 
+import {
+  APP_ACCENT,
+  APP_BACKGROUND,
+  APP_BORDER,
+  APP_DANGER,
+  APP_SURFACE,
+  APP_SURFACE_SOFT,
+  APP_TEXT,
+  APP_TEXT_MUTED,
+} from '@/constants/app-colors';
+
+const darkPalette = {
+  text: APP_TEXT,
+  background: APP_BACKGROUND,
+  backgroundElement: APP_SURFACE,
+  backgroundSelected: APP_SURFACE_SOFT,
+  textSecondary: APP_TEXT_MUTED,
+  primary: APP_ACCENT,
+  primaryMuted: '#3B2164',
+  border: APP_BORDER,
+  error: APP_DANGER,
+  accent: '#22D3EE',
+} as const;
+
 export const Colors = {
-  light: {
-    text: '#181124',
-    background: '#FAF8FF',
-    backgroundElement: '#FFFFFF',
-    backgroundSelected: '#F1EAFF',
-    textSecondary: '#6B6475',
-    primary: '#7C3AED',
-    primaryMuted: '#EDE9FE',
-    border: '#E7DFF5',
-    error: '#DC2626',
-    accent: '#06B6D4',
-  },
-  dark: {
-    text: '#FAF7FF',
-    background: '#10091F',
-    backgroundElement: '#1A102E',
-    backgroundSelected: '#251642',
-    textSecondary: '#B8A9D6',
-    primary: '#A78BFA',
-    primaryMuted: '#3B2164',
-    border: '#2E2145',
-    error: '#F87171',
-    accent: '#22D3EE',
-  },
+  light: darkPalette,
+  dark: darkPalette,
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {

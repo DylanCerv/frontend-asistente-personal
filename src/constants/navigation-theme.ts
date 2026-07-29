@@ -1,30 +1,19 @@
-import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
+import { DarkTheme, type Theme } from '@react-navigation/native';
 
-const canvas = '#FAF8FF';
-const canvasDark = '#10091F';
-
-export const AppLightTheme: Theme = {
-  ...DefaultTheme,
-  dark: false,
-  colors: {
-    ...DefaultTheme.colors,
-    background: canvas,
-    card: canvas,
-    primary: '#7C3AED',
-    border: '#E7DFF5',
-    text: '#181124',
-  },
-};
+import { APP_ACCENT, APP_BACKGROUND, APP_BORDER, APP_TEXT } from '@/constants/app-colors';
 
 export const AppDarkTheme: Theme = {
   ...DarkTheme,
   dark: true,
   colors: {
     ...DarkTheme.colors,
-    background: canvasDark,
-    card: canvasDark,
-    primary: '#A78BFA',
-    border: '#2E2145',
-    text: '#FAF7FF',
+    background: APP_BACKGROUND,
+    card: APP_BACKGROUND,
+    primary: APP_ACCENT,
+    border: APP_BORDER,
+    text: APP_TEXT,
   },
 };
+
+/** Kept for compatibility; app is locked to dark during redesign. */
+export const AppLightTheme = AppDarkTheme;

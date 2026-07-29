@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
 
 export default function ChatRedirect() {
-  return <Redirect href="/(main)" />;
+  return <Redirect href="/assistant" />;
 }

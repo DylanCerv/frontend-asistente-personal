@@ -2,28 +2,53 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
 import { PRIORITY_LABELS } from '@/constants/labels';
 import { CATEGORY_OPTIONS, getCategoryIcon } from '@/constants/categories';
+import {
+  APP_ACCENT,
+  APP_DANGER,
+  APP_ON_ACCENT,
+  APP_SURFACE_SOFT,
+  APP_TEXT_MUTED,
+} from '@/constants/app-colors';
 import { useScreenAccent } from '@/constants/screen-themes';
 import { AgendaCalendar, useAgendaCalendarState } from '@/components/agenda-calendar';
-import { ScreenAccentBar } from '@/components/screen-accent-bar';
 import { ExpandableItemCard } from '@/components/expandable-item-card';
 import { EventDetailsContent, TaskDetailsContent } from '@/components/item-details';
 import { ScreenHeader } from '@/components/screen-header';
+import { TasksHeader } from '@/components/tasks-header';
 import { useAssistant } from '@/context/assistant-context';
+import { useAuth } from '@/context/auth-context';
+import { useDeviceCalendar } from '@/context/device-calendar-context';
+import { useUserPreferences } from '@/context/user-preferences-context';
 import { showAppAlert } from '@/services/app-dialog';
+import { buildProgressReportHtml, sharePdfReport } from '@/services/report-export';
 import type { CalendarEvent, TaskItem } from '@/types/assistant';
 import type { RecordChange, UpdateRecordPayload } from '@/types/record-api';
 import type { RecordType } from '@/types/record';
 import { getRecordHistory } from '@/services/records/records-api';
 
 type Priority = NonNullable<UpdateRecordPayload['priority']>;
-import { filterTasksByDates } from '@/utils/agenda-utils';
+import {
+  filterTasksByDates,
+  getTaskSubtitle,
+  getTaskTimeLabel,
+  isExpiringSoon,
+} from '@/utils/agenda-utils';
 import {
   formatSelectedDatesLabel,
   isDateSelected,
@@ -37,19 +62,29 @@ export default function AgendaScreen() {
   const focusTaskId = typeof taskId === 'string' ? taskId : undefined;
   const focusEventId = typeof eventId === 'string' ? eventId : undefined;
 
+  const { user } = useAuth();
+  const { preferredName } = useUserPreferences();
   const { tasks, events, toggleTaskComplete, toggleEventComplete, deleteRecord, patchRecord, refreshRecords } = useAssistant();
+  const { deviceCalendarEvents, refreshDeviceCalendar } = useDeviceCalendar();
   const { selectedDates, onChange } = useAgendaCalendarState();
   const accent = useScreenAccent('agenda');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const allEvents = useMemo(
+    () => [...events, ...deviceCalendarEvents],
+    [events, deviceCalendarEvents],
+  );
 
   const focusedTask = useMemo(
     () => (focusTaskId ? tasks.find((t) => t.id === focusTaskId) : undefined),
     [focusTaskId, tasks],
   );
   const focusedEvent = useMemo(
-    () => (focusEventId ? events.find((e) => e.id === focusEventId) : undefined),
-    [events, focusEventId],
+    () => (focusEventId ? allEvents.find((e) => e.id === focusEventId) : undefined),
+    [allEvents, focusEventId],
   );
 
   const filteredTasks = useMemo(
@@ -58,8 +93,8 @@ export default function AgendaScreen() {
   );
 
   const filteredEvents = useMemo(
-    () => events.filter((event) => isDateSelected(event.scheduledAt, selectedDates)),
-    [events, selectedDates],
+    () => allEvents.filter((event) => isDateSelected(event.scheduledAt, selectedDates)),
+    [allEvents, selectedDates],
   );
 
   const markedDates = useMemo(() => {
@@ -70,12 +105,12 @@ export default function AgendaScreen() {
       }
     }
     if (filterType !== 'tasks') {
-      for (const event of events) {
+      for (const event of allEvents) {
         if (event.scheduledAt) dates.add(event.scheduledAt);
       }
     }
     return Array.from(dates);
-  }, [tasks, events, filterType]);
+  }, [tasks, allEvents, filterType]);
 
   const groupedDays = useMemo(() => {
     const dates = [...selectedDates].sort().reverse();
@@ -97,6 +132,13 @@ export default function AgendaScreen() {
   }
 
   function confirmDeleteEvent(id: string, title: string) {
+    if (id.startsWith('device-')) {
+      showAppAlert(
+        'Evento del calendario',
+        'Este evento viene del calendario del teléfono. Ábrelo en la app de Calendario para editarlo o eliminarlo.',
+      );
+      return;
+    }
     showAppAlert('Eliminar evento', `¿Eliminar "${title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: () => void deleteRecord(id) },
@@ -106,24 +148,42 @@ export default function AgendaScreen() {
   async function handleRefresh() {
     setIsRefreshing(true);
     try {
-      await refreshRecords();
+      await Promise.all([refreshRecords(), refreshDeviceCalendar(true)]);
     } finally {
       setIsRefreshing(false);
     }
   }
 
+  async function handleDownloadReports() {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const periodLabel = formatSelectedDatesLabel(selectedDates);
+      const displayName = preferredName.trim() || user?.name || 'Usuario';
+      const html = buildProgressReportHtml({
+        displayName,
+        periodLabel,
+        tasks: filteredTasks,
+        events: filteredEvents,
+      });
+      await sharePdfReport(`Reporte ${periodLabel}`, html);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   if (focusedTask) {
     return (
-      <ScreenSafeArea>
+      <ScreenSafeArea edges={['top']}>
         <ScreenHeader title="Detalle de tarea" subtitle={focusedTask.title} />
         <ScrollView
-          contentContainerClassName="w-full max-w-3xl gap-3 self-center px-6 pb-36 pt-4"
+          contentContainerClassName="w-full max-w-3xl gap-3 self-center px-5 pb-28 pt-4"
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor="#7C3AED"
-              colors={['#7C3AED']}
+              tintColor={APP_ACCENT}
+              colors={[APP_ACCENT]}
             />
           }>
           <AgendaTaskCard
@@ -141,16 +201,16 @@ export default function AgendaScreen() {
 
   if (focusedEvent) {
     return (
-      <ScreenSafeArea>
+      <ScreenSafeArea edges={['top']}>
         <ScreenHeader title="Detalle de evento" subtitle={focusedEvent.title} />
         <ScrollView
-          contentContainerClassName="w-full max-w-3xl gap-3 self-center px-6 pb-36 pt-4"
+          contentContainerClassName="w-full max-w-3xl gap-3 self-center px-5 pb-28 pt-4"
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor="#7C3AED"
-              colors={['#7C3AED']}
+              tintColor={APP_ACCENT}
+              colors={[APP_ACCENT]}
             />
           }>
           <AgendaEventCard
@@ -166,76 +226,107 @@ export default function AgendaScreen() {
     );
   }
 
-  const totalShown =
-    (filterType !== 'events' ? filteredTasks.length : 0) +
-    (filterType !== 'tasks' ? filteredEvents.length : 0);
-
   return (
-    <ScreenSafeArea>
-      <ScreenHeader
-        title="Agenda"
-        subtitle={`${formatSelectedDatesLabel(selectedDates)} · ${totalShown} ítems`}
-        accent={accent}
-      />
-      <ScreenAccentBar accent={accent} />
+    <ScreenSafeArea edges={['top']}>
+      <TasksHeader />
+
       <ScrollView
-        contentContainerClassName="w-full max-w-3xl gap-6 self-center px-6 pb-36 pt-4"
+        contentContainerClassName="w-full max-w-3xl gap-4 self-center px-5 pb-28 pt-2"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={accent.main}
-            colors={[accent.main]}
+            tintColor={APP_ACCENT}
+            colors={[APP_ACCENT]}
           />
         }>
-        <AgendaCalendar
-          selectedDates={selectedDates}
-          markedDates={markedDates}
-          onChange={onChange}
-          accent={accent}
-        />
+        <View className="flex-row items-center gap-3">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Descargar reportes"
+            disabled={isExporting}
+            onPress={() => void handleDownloadReports()}
+            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl py-3.5 active:opacity-85"
+            style={{ backgroundColor: APP_ACCENT, opacity: isExporting ? 0.7 : 1 }}>
+            {isExporting ? (
+              <ActivityIndicator size="small" color={APP_ON_ACCENT} />
+            ) : (
+              <Ionicons name="download-outline" size={18} color={APP_ON_ACCENT} />
+            )}
+            <Text className="text-[15px] font-bold" style={{ color: APP_ON_ACCENT }}>
+              {isExporting ? 'Generando...' : 'Descargar Reportes'}
+            </Text>
+          </Pressable>
 
-        {/* Type filter */}
-        <View className="flex-row gap-2">
-          {(
-            [
-              { id: 'all', label: 'Todo', icon: 'list-outline' },
-              { id: 'tasks', label: 'Tareas', icon: 'checkmark-circle-outline' },
-              { id: 'events', label: 'Eventos', icon: 'calendar-outline' },
-            ] as const
-          ).map((f) => (
-            <Pressable
-              key={f.id}
-              accessibilityRole="button"
-              onPress={() => setFilterType(f.id)}
-              className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border py-2.5 ${
-                filterType === f.id
-                  ? ''
-                  : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
-              }`}
-              style={
-                filterType === f.id
-                  ? { borderColor: accent.main, backgroundColor: accent.soft }
-                  : undefined
-              }>
-              <Ionicons
-                name={f.icon}
-                size={14}
-                color={filterType === f.id ? accent.main : '#6B6475'}
-              />
-              <Text
-                className={`text-sm font-semibold ${
-                  filterType === f.id ? '' : 'text-subtle dark:text-subtle-dark'
-                }`}
-                style={filterType === f.id ? { color: accent.main } : undefined}>
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Filtros"
+            accessibilityState={{ selected: filtersVisible }}
+            onPress={() => setFiltersVisible((prev) => !prev)}
+            className="h-12 w-12 items-center justify-center rounded-2xl border active:opacity-85"
+            style={{
+              borderColor: filtersVisible ? APP_ACCENT : 'rgba(255,255,255,0.12)',
+              backgroundColor: filtersVisible ? 'rgba(196,181,253,0.14)' : APP_SURFACE_SOFT,
+            }}>
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={filtersVisible ? APP_ACCENT : '#FFFFFF'}
+            />
+          </Pressable>
         </View>
 
+        {filtersVisible ? (
+          <View className="gap-4">
+            <AgendaCalendar
+              selectedDates={selectedDates}
+              markedDates={markedDates}
+              onChange={onChange}
+              accent={accent}
+            />
+
+            <View className="flex-row gap-2">
+              {(
+                [
+                  { id: 'all', label: 'Todo', icon: 'list-outline' },
+                  { id: 'tasks', label: 'Tareas', icon: 'checkmark-circle-outline' },
+                  { id: 'events', label: 'Eventos', icon: 'calendar-outline' },
+                ] as const
+              ).map((f) => (
+                <Pressable
+                  key={f.id}
+                  accessibilityRole="button"
+                  onPress={() => setFilterType(f.id)}
+                  className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border py-2.5 ${
+                    filterType === f.id
+                      ? ''
+                      : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
+                  }`}
+                  style={
+                    filterType === f.id
+                      ? { borderColor: accent.main, backgroundColor: accent.soft }
+                      : undefined
+                  }>
+                  <Ionicons
+                    name={f.icon}
+                    size={14}
+                    color={filterType === f.id ? accent.main : APP_TEXT_MUTED}
+                  />
+                  <Text
+                    className={`text-sm font-semibold ${
+                      filterType === f.id ? '' : 'text-subtle dark:text-subtle-dark'
+                    }`}
+                    style={filterType === f.id ? { color: accent.main } : undefined}>
+                    {f.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {groupedDays.length > 0 ? (
-          <View className="gap-5">
+          <View className="gap-3">
             {groupedDays.map((day) => (
               <DayGroup
                 key={day.date}
@@ -252,14 +343,14 @@ export default function AgendaScreen() {
             ))}
           </View>
         ) : (
-          <View className="items-center gap-3 rounded-[28px] border border-dashed p-10" style={{ borderColor: accent.border }}>
-            <Ionicons name="calendar-outline" size={40} color={accent.main} />
+          <View
+            className="items-center gap-3 rounded-[28px] border border-dashed p-10"
+            style={{ borderColor: accent.border }}>
+            <Ionicons name="checkbox-outline" size={40} color={APP_ACCENT} />
             <Text className="text-center text-subtle dark:text-subtle-dark">
               {selectedDates.length === 0
-                ? 'Selecciona al menos un día en el calendario.'
-                : selectedDates.length === 1
-                  ? 'No hay nada en este día. Habla con Kivo para crear tareas o eventos.'
-                  : 'No hay nada en estos días. Habla con Kivo para crear tareas o eventos.'}
+                ? 'Selecciona al menos un día en los filtros.'
+                : 'No hay nada en estos días. Habla con Kivo para crear tareas.'}
             </Text>
           </View>
         )}
@@ -271,7 +362,6 @@ export default function AgendaScreen() {
 type PatchFn = (id: string, payload: UpdateRecordPayload) => Promise<void>;
 
 function DayGroup({
-  label,
   tasks,
   events,
   onToggleTask,
@@ -293,9 +383,6 @@ function DayGroup({
 }) {
   return (
     <View className="gap-3">
-      <Text className="text-lg font-semibold text-foreground dark:text-foreground-dark">
-        {label}
-      </Text>
       {events.map((event) => (
         <AgendaEventCard
           key={event.id}
@@ -340,12 +427,13 @@ function CompletionCheckbox({
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       onPress={onToggle}
-      className={`mt-4 h-6 w-6 items-center justify-center rounded-lg border-2 ${
-        checked
-          ? 'border-brand bg-brand dark:border-brand-dark dark:bg-brand-dark'
-          : 'border-border dark:border-border-dark'
-      }`}>
-      {checked ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+      hitSlop={8}
+      className="h-6 w-6 items-center justify-center rounded-lg border-2"
+      style={{
+        borderColor: checked ? APP_ACCENT : 'rgba(255,255,255,0.28)',
+        backgroundColor: checked ? APP_ACCENT : 'transparent',
+      }}>
+      {checked ? <Ionicons name="checkmark" size={14} color={APP_ON_ACCENT} /> : null}
     </Pressable>
   );
 }
@@ -368,12 +456,19 @@ function AgendaEventCard({
   onSave: () => void;
 }) {
   const isCompleted = event.status === 'completed';
+  const isDeviceEvent = event.source === 'device' || event.readOnly === true;
   const [editVisible, setEditVisible] = useState(false);
 
   return (
     <>
       <View className="flex-row items-start gap-2">
-        <CompletionCheckbox checked={isCompleted} onToggle={onToggle} />
+        {isDeviceEvent ? (
+          <View className="h-6 w-6 items-center justify-center">
+            <Ionicons name="phone-portrait-outline" size={16} color={APP_TEXT_MUTED} />
+          </View>
+        ) : (
+          <CompletionCheckbox checked={isCompleted} onToggle={onToggle} />
+        )}
 
         <View className="flex-1">
           <ExpandableItemCard
@@ -381,25 +476,31 @@ function AgendaEventCard({
             expandedContent={
               <View>
                 <EventDetailsContent event={event} />
-                <ChangeHistory recordId={event.id} />
-                <View className="mt-3 flex-row gap-2">
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setEditVisible(true)}
-                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 dark:bg-surface-soft-dark">
-                    <Ionicons name="pencil-outline" size={16} color="#7C3AED" />
-                    <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
-                      Editar
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={onDelete}
-                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 dark:bg-surface-soft-dark">
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                    <Text className="text-sm font-semibold text-red-500">Eliminar</Text>
-                  </Pressable>
-                </View>
+                {!isDeviceEvent ? <ChangeHistory recordId={event.id} /> : null}
+                {!isDeviceEvent ? (
+                  <View className="mt-3 flex-row gap-2">
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setEditVisible(true)}
+                      className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 dark:bg-surface-soft-dark">
+                      <Ionicons name="pencil-outline" size={16} color="#7C3AED" />
+                      <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
+                        Editar
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={onDelete}
+                      className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 dark:bg-surface-soft-dark">
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                      <Text className="text-sm font-semibold text-red-500">Eliminar</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text className="mt-3 text-xs leading-5 text-subtle dark:text-subtle-dark">
+                    Solo lectura · viene del calendario del teléfono
+                  </Text>
+                )}
               </View>
             }>
             <View className="flex-row items-center gap-3">
@@ -415,7 +516,12 @@ function AgendaEventCard({
               </View>
               <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
                 <Ionicons
-                  name={EVENT_TYPE_ICONS[event.type as keyof typeof EVENT_TYPE_ICONS] ?? 'calendar-outline'}
+                  name={
+                    isDeviceEvent
+                      ? 'calendar-outline'
+                      : (EVENT_TYPE_ICONS[event.type as keyof typeof EVENT_TYPE_ICONS] ??
+                        'calendar-outline')
+                  }
                   size={20}
                   color="#7C3AED"
                 />
@@ -430,7 +536,13 @@ function AgendaEventCard({
                   {event.title}
                 </Text>
                 <Text className="text-xs text-subtle dark:text-subtle-dark">
-                  {event.type === 'meeting' ? 'Reunión' : event.type === 'reminder' ? 'Recordatorio' : 'Evento'}
+                  {isDeviceEvent
+                    ? `Calendario${event.calendarName ? ` · ${event.calendarName}` : ''}`
+                    : event.type === 'meeting'
+                      ? 'Reunión'
+                      : event.type === 'reminder'
+                        ? 'Recordatorio'
+                        : 'Evento'}
                   {isCompleted ? ' · Completado' : ''}
                 </Text>
               </View>
@@ -439,16 +551,18 @@ function AgendaEventCard({
         </View>
       </View>
 
-      <EditEventModal
-        visible={editVisible}
-        event={event}
-        onPatch={onPatch}
-        onClose={() => setEditVisible(false)}
-        onSaved={() => {
-          setEditVisible(false);
-          onSave();
-        }}
-      />
+      {!isDeviceEvent ? (
+        <EditEventModal
+          visible={editVisible}
+          event={event}
+          onPatch={onPatch}
+          onClose={() => setEditVisible(false)}
+          onSaved={() => {
+            setEditVisible(false);
+            onSave();
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -471,64 +585,96 @@ function AgendaTaskCard({
   defaultExpanded?: boolean;
 }) {
   const isCompleted = task.status === 'completed';
+  const urgent = isExpiringSoon(task);
+  const timeLabel = getTaskTimeLabel(task);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [editVisible, setEditVisible] = useState(false);
 
   return (
     <>
-      <View className="flex-row items-start gap-2">
-        <CompletionCheckbox checked={isCompleted} onToggle={onToggle} />
-
-        <View className="flex-1">
-          <ExpandableItemCard
-            defaultExpanded={defaultExpanded}
-            expandedContent={
-              <View>
-                <TaskDetailsContent task={task} />
-                <ChangeHistory recordId={task.id} />
-                <View className="mt-3 flex-row gap-2">
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setEditVisible(true)}
-                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 dark:bg-surface-soft-dark">
-                    <Ionicons name="pencil-outline" size={16} color="#7C3AED" />
-                    <Text className="text-sm font-semibold text-brand dark:text-brand-dark">
-                      Editar
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={onDelete}
-                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 dark:bg-surface-soft-dark">
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                    <Text className="text-sm font-semibold text-red-500">Eliminar</Text>
-                  </Pressable>
-                </View>
-              </View>
-            }>
-            <View className="flex-row items-center gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-xl bg-muted dark:bg-muted-dark">
-                <Ionicons
-                  name={getCategoryIcon(task.category) as never}
-                  size={20}
-                  color="#7C3AED"
-                />
-              </View>
-              <View className="flex-1 gap-0.5">
+      <View
+        className="overflow-hidden rounded-2xl border px-4 py-3.5"
+        style={{
+          backgroundColor: APP_SURFACE_SOFT,
+          borderColor: urgent ? 'rgba(196,181,253,0.45)' : 'rgba(255,255,255,0.06)',
+          shadowColor: urgent ? APP_ACCENT : 'transparent',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: urgent ? 0.55 : 0,
+          shadowRadius: urgent ? 14 : 0,
+          elevation: urgent ? 8 : 0,
+        }}>
+        {urgent || timeLabel ? (
+          <View className="mb-2.5 flex-row items-center justify-between gap-2">
+            {urgent ? (
+              <View
+                className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
+                style={{ backgroundColor: 'rgba(248,113,113,0.14)' }}>
+                <Ionicons name="alert" size={11} color={APP_DANGER} />
                 <Text
-                  className={`text-[15px] font-semibold ${
-                    isCompleted
-                      ? 'text-subtle line-through dark:text-subtle-dark'
-                      : 'text-foreground dark:text-foreground-dark'
-                  }`}>
-                  {task.title}
-                </Text>
-                <Text className="text-xs text-subtle dark:text-subtle-dark">
-                  Tarea · {task.category} · {PRIORITY_LABELS[task.priority]}
+                  className="text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: APP_DANGER }}>
+                  Vence pronto
                 </Text>
               </View>
+            ) : (
+              <View />
+            )}
+            {timeLabel ? (
+              <Text className="text-xs font-medium" style={{ color: APP_TEXT_MUTED }}>
+                {timeLabel}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View className="flex-row items-start gap-3">
+          <View className="pt-0.5">
+            <CompletionCheckbox checked={isCompleted} onToggle={onToggle} />
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            onPress={() => setExpanded((prev) => !prev)}
+            className="min-w-0 flex-1 active:opacity-90">
+            <View className="gap-0.5">
+              <Text
+                className={`text-[15px] font-semibold ${isCompleted ? 'line-through' : ''}`}
+                style={{ color: isCompleted ? APP_TEXT_MUTED : '#FFFFFF' }}
+                numberOfLines={2}>
+                {task.title}
+              </Text>
+              <Text className="text-[12px]" style={{ color: APP_TEXT_MUTED }}>
+                {getTaskSubtitle(task)}
+              </Text>
             </View>
-          </ExpandableItemCard>
+          </Pressable>
         </View>
+
+        {expanded ? (
+          <View className="mt-3 gap-3 border-t border-border pt-3 dark:border-border-dark">
+            <TaskDetailsContent task={task} />
+            <ChangeHistory recordId={task.id} />
+            <View className="flex-row gap-2">
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setEditVisible(true)}
+                className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface py-2.5 dark:bg-surface-dark">
+                <Ionicons name="pencil-outline" size={16} color={APP_ACCENT} />
+                <Text className="text-sm font-semibold" style={{ color: APP_ACCENT }}>
+                  Editar
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onDelete}
+                className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface py-2.5 dark:bg-surface-dark">
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                <Text className="text-sm font-semibold text-red-500">Eliminar</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       <EditTaskModal

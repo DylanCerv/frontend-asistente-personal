@@ -264,7 +264,7 @@ export default function ReportScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Ver detalle de ${task.title}`}
                 onPress={() =>
-                  router.push({ pathname: '/agenda', params: { taskId: task.id } })
+                  router.push({ pathname: '/tasks', params: { taskId: task.id } })
                 }
                 className="flex-row items-start gap-3 rounded-2xl bg-canvas px-3 py-3 active:opacity-85 dark:bg-canvas-dark">
                 <Text className="text-sm font-semibold" style={{ color: accent.main }}>
@@ -305,7 +305,7 @@ export default function ReportScreen() {
                 key={task.id}
                 accessibilityRole="button"
                 onPress={() =>
-                  router.push({ pathname: '/agenda', params: { taskId: task.id } })
+                  router.push({ pathname: '/tasks', params: { taskId: task.id } })
                 }
                 className="flex-row items-center gap-3 rounded-2xl bg-canvas px-3 py-3 active:opacity-85 dark:bg-canvas-dark">
                 <Ionicons name="checkmark-circle" size={18} color={accent.main} />

@@ -1,8 +1,14 @@
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 
+import {
+  WIDGET_ACCENT,
+  WIDGET_SURFACE,
+  WIDGET_TEXT,
+  WIDGET_TEXT_MUTED,
+} from './widget-theme';
 import type { WidgetTodayPayload } from './widget-types';
-import { WIDGET_DEEP_LINK } from './widget-types';
+import { WIDGET_DEEP_LINK_AGENDA } from './widget-types';
 
 type KivoTodayWidgetViewProps = {
   payload: WidgetTodayPayload | null;
@@ -18,7 +24,7 @@ function fallbackPayload(): WidgetTodayPayload {
     overflowCount: 0,
     emptyMessage: 'Abre Kivo para sincronizar',
     enabled: false,
-    deepLink: WIDGET_DEEP_LINK,
+    deepLink: WIDGET_DEEP_LINK_AGENDA,
   };
 }
 
@@ -35,31 +41,34 @@ export function KivoTodayWidgetView({ payload }: KivoTodayWidgetViewProps) {
       style={{
         height: 'match_parent',
         width: 'match_parent',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 24,
+        backgroundColor: WIDGET_SURFACE,
+        borderRadius: 28,
         padding: 16,
         flexDirection: 'column',
       }}
       clickAction="OPEN_URI"
       clickActionData={{ uri: data.deepLink }}>
-      <TextWidget text="Kivo" style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }} />
+      <TextWidget
+        text="Kivo"
+        style={{ fontSize: 12, fontWeight: '600', color: WIDGET_ACCENT }}
+      />
       {data.dateLabel ? (
         <TextWidget
           text={data.dateLabel}
-          style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}
+          style={{ fontSize: 11, color: WIDGET_TEXT_MUTED, marginTop: 2 }}
           maxLines={1}
         />
       ) : null}
       <TextWidget
         text={data.headline}
-        style={{ fontSize: 16, fontWeight: '700', color: '#0F172A', marginTop: 8 }}
+        style={{ fontSize: 16, fontWeight: '700', color: WIDGET_TEXT, marginTop: 8 }}
         maxLines={2}
       />
 
       {data.items.length === 0 ? (
         <TextWidget
           text={data.emptyMessage ?? ''}
-          style={{ fontSize: 13, color: '#64748B', marginTop: 10 }}
+          style={{ fontSize: 13, color: WIDGET_TEXT_MUTED, marginTop: 10 }}
           maxLines={3}
         />
       ) : (
@@ -69,7 +78,7 @@ export function KivoTodayWidgetView({ payload }: KivoTodayWidgetViewProps) {
             text={formatItemLine(item)}
             style={{
               fontSize: 13,
-              color: item.priority === 'high' ? '#7C3AED' : '#334155',
+              color: item.priority === 'high' ? WIDGET_ACCENT : WIDGET_TEXT,
               fontWeight: item.priority === 'high' ? '600' : 'normal',
               marginTop: 8,
             }}
@@ -82,7 +91,7 @@ export function KivoTodayWidgetView({ payload }: KivoTodayWidgetViewProps) {
       {data.overflowCount > 0 ? (
         <TextWidget
           text={`+${data.overflowCount} más`}
-          style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}
+          style={{ fontSize: 12, color: WIDGET_TEXT_MUTED, marginTop: 10 }}
           maxLines={1}
         />
       ) : null}

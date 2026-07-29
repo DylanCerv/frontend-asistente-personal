@@ -42,7 +42,7 @@ export function InsightCard({ insight, onPress }: InsightCardProps) {
       disabled={!onPress}
       className={`flex-row items-start gap-3 rounded-2xl border p-4 active:opacity-85 dark:bg-surface-soft-dark ${accent}`}>
       <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface dark:bg-surface-dark">
-        <Ionicons name={icon} size={20} color="#7C3AED" />
+        <Ionicons name={icon} size={20} color="#C4B5FD" />
       </View>
       <View className="flex-1 gap-0.5">
         <Text className="text-[15px] font-semibold leading-5 text-foreground dark:text-foreground-dark">
@@ -52,7 +52,7 @@ export function InsightCard({ insight, onPress }: InsightCardProps) {
           <Text className="text-sm text-subtle dark:text-subtle-dark">{insight.subtitle}</Text>
         ) : null}
       </View>
-      {onPress ? <Ionicons name="chevron-forward" size={18} color="#6B6475" /> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={18} color="#8A8A8A" /> : null}
     </Pressable>
   );
 }

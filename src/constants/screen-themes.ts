@@ -24,13 +24,13 @@ export type ScreenAccent = {
 export const SCREEN_THEMES: Record<ScreenThemeId, ScreenTheme> = {
   agenda: {
     id: 'agenda',
-    label: 'Agenda',
-    accent: '#E11D48',
-    accentDark: '#FB7185',
-    soft: 'rgba(225, 29, 72, 0.1)',
-    softDark: 'rgba(251, 113, 133, 0.16)',
-    border: 'rgba(225, 29, 72, 0.28)',
-    borderDark: 'rgba(251, 113, 133, 0.34)',
+    label: 'Tareas',
+    accent: '#C4B5FD',
+    accentDark: '#C4B5FD',
+    soft: 'rgba(196, 181, 253, 0.12)',
+    softDark: 'rgba(196, 181, 253, 0.16)',
+    border: 'rgba(196, 181, 253, 0.32)',
+    borderDark: 'rgba(196, 181, 253, 0.36)',
   },
   finances: {
     id: 'finances',

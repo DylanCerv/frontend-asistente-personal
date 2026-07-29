@@ -12,8 +12,8 @@ export function AuthBackButton({ onPress }: AuthBackButtonProps) {
       accessibilityLabel="Volver"
       onPress={onPress}
       hitSlop={8}
-      className="h-11 w-11 items-center justify-center rounded-full border border-border bg-surface/80 dark:border-border-dark dark:bg-surface-dark/80 active:opacity-70">
-      <Ionicons name="chevron-back" size={22} color="#64748B" />
+      className="h-11 w-11 items-center justify-center rounded-full bg-[#1F1F1F] active:opacity-70">
+      <Ionicons name="chevron-back" size={22} color="#C4B5FD" />
     </Pressable>
   );
 }

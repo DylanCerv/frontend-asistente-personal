@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { Text, View } from 'react-native';
 
-import { AuthOptionsSection } from '@/components/auth/auth-options-section';
+import { AuthDivider, AuthPrimaryButton } from '@/components/auth/auth-controls';
+import { AuthField } from '@/components/auth/auth-field';
 import { AuthScreenShell } from '@/components/auth/auth-screen-shell';
-import { AuthStepHeader } from '@/components/auth/auth-step-header';
 import { AuthSwitchLink } from '@/components/auth/auth-switch-link';
-import { AuthWelcomeHero } from '@/components/auth/auth-welcome-hero';
-import { LoginEmailForm } from '@/components/auth/login-email-form';
+import { SocialAuthButton } from '@/components/auth/social-auth-button';
 
 type LoginScreenProps = {
   onSignIn?: (credentials: { email: string; password: string }) => void;
@@ -18,6 +18,7 @@ type LoginScreenProps = {
 
 export function LoginScreen({
   onSignIn,
+  onGoogleSignIn,
   onRegister,
   onBackFromEmailForm,
   loading = false,
@@ -25,60 +26,118 @@ export function LoginScreen({
 }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showPasswordStep, setShowPasswordStep] = useState(false);
 
-  function handleSignIn() {
-    onSignIn?.({ email: email.trim(), password });
+  const trimmedEmail = email.trim();
+  const canContinueWithEmail = trimmedEmail.length > 0 && trimmedEmail.includes('@');
+
+  function handleContinueWithEmail() {
+    if (!canContinueWithEmail) return;
+    setShowPasswordStep(true);
   }
 
-  function handleBackFromEmailForm() {
-    setShowEmailForm(false);
+  function handleSignIn() {
+    onSignIn?.({ email: trimmedEmail, password });
+  }
+
+  function handleBackFromPassword() {
+    setShowPasswordStep(false);
+    setPassword('');
     onBackFromEmailForm?.();
   }
 
   return (
-    <AuthScreenShell onBack={showEmailForm ? handleBackFromEmailForm : undefined}>
-      {showEmailForm ? (
-        <>
-          <AuthStepHeader
-            icon="mail-outline"
-            title="Iniciar sesión"
-            subtitle="Ingresa tus credenciales para continuar."
+    <AuthScreenShell onBack={showPasswordStep ? handleBackFromPassword : undefined}>
+      {showPasswordStep ? (
+        <View className="gap-6">
+          <View className="gap-2">
+            <Text className="text-[28px] font-bold tracking-tight text-white">
+              Ingresa tu contraseña
+            </Text>
+            <Text className="text-[15px] leading-6 text-[#8A8A8A]">{trimmedEmail}</Text>
+          </View>
+
+          <AuthField
+            label="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="password"
+            textContentType="password"
+            returnKeyType="done"
+            onSubmitEditing={handleSignIn}
+            autoFocus
           />
 
-          <LoginEmailForm
-            email={email}
-            password={password}
-            onEmailChange={setEmail}
-            onPasswordChange={setPassword}
-            onSubmit={handleSignIn}
+          {error ? (
+            <Text className="text-center text-sm text-[#F87171]">{error}</Text>
+          ) : null}
+
+          <AuthPrimaryButton
+            label="Iniciar sesión"
+            onPress={handleSignIn}
             loading={loading}
-            error={error}
+            disabled={password.length === 0}
           />
 
           <AuthSwitchLink
             text="¿No tienes cuenta?"
-            actionLabel="Regístrate"
+            actionLabel="Regístrate gratis"
             onPress={onRegister}
           />
-        </>
+        </View>
       ) : (
-        <>
-          <AuthWelcomeHero />
+        <View className="gap-6">
+          <View className="gap-2">
+            <Text className="text-[28px] font-bold tracking-tight text-white">
+              Bienvenido de nuevo
+            </Text>
+            <Text className="text-[15px] leading-6 text-[#8A8A8A]">
+              Tu asistente te está esperando.
+            </Text>
+          </View>
 
-          <AuthOptionsSection
-            emailButtonLabel="Continuar con tu correo"
-            onEmailPress={() => setShowEmailForm(true)}
+          <SocialAuthButton
+            label="Continuar con Google"
+            onPress={onGoogleSignIn}
             loading={loading}
-            error={error}
+            disabled={loading}
+          />
+
+          <AuthDivider />
+
+          <AuthField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="nombre@ejemplo.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            onSubmitEditing={handleContinueWithEmail}
+          />
+
+          {error ? (
+            <Text className="text-center text-sm text-[#F87171]">{error}</Text>
+          ) : null}
+
+          <AuthPrimaryButton
+            label="Continuar con Email"
+            onPress={handleContinueWithEmail}
+            disabled={!canContinueWithEmail || loading}
           />
 
           <AuthSwitchLink
             text="¿No tienes cuenta?"
-            actionLabel="Regístrate"
+            actionLabel="Regístrate gratis"
             onPress={onRegister}
           />
-        </>
+        </View>
       )}
     </AuthScreenShell>
   );

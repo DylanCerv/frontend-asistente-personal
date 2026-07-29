@@ -28,13 +28,28 @@ import {
   parseReminderAlertStyle,
   type ReminderAlertStyle,
 } from '@/services/reminders/reminder-alert-style';
+import {
+  DEFAULT_REMINDER_ALERT_SOUND,
+  DEFAULT_REMINDER_ALERT_VIBRATION,
+  parseReminderAlertSound,
+  parseReminderAlertVibration,
+  type ReminderAlertSoundId,
+  type ReminderAlertVibrationId,
+} from '@/services/reminders/reminder-alert-presets';
+import {
+  DEFAULT_FOCUS_LOCK_INTENSITY,
+  parseFocusLockIntensity,
+  type FocusLockIntensity,
+} from '@/services/focus/focus-lock-intensity';
 
 export type { ReminderAlertStyle };
+export type { ReminderAlertSoundId, ReminderAlertVibrationId };
 export type { AppLanguage, AppPlan };
 export type { AppLockDelaySeconds };
+export type { FocusLockIntensity };
 
 /** Local cache — provides instant state on startup while backend loads */
-const CACHE_KEY = '@asistente/settings_cache_v2';
+const CACHE_KEY = '@asistente/settings_cache_v3';
 /** App lock is device-specific, never synced to backend */
 export type AppLockMethod = 'none' | 'biometric' | 'pin';
 
@@ -43,12 +58,19 @@ const APP_LOCK_DELAY_KEY = '@asistente/app_lock_delay_seconds';
 const LEGACY_BIOMETRIC_KEY = '@asistente/biometric_lock';
 const HOME_WIDGET_ENABLED_KEY = '@asistente/home_widget_enabled';
 export const HOME_WIDGET_SETUP_PENDING_KEY = '@asistente/home_widget_setup_pending';
+const DAILY_SUMMARY_ENABLED_KEY = '@asistente/daily_summary_enabled';
+const DEVICE_CALENDAR_SYNC_KEY = '@asistente/device_calendar_sync_enabled';
+const FOCUS_LOCK_INTENSITY_KEY = '@asistente/focus_lock_intensity';
+const REMINDER_ALERT_SOUND_LOCAL_KEY = '@asistente/reminder_alert_sound_local';
+const REMINDER_ALERT_VIBRATION_LOCAL_KEY = '@asistente/reminder_alert_vibration_local';
 
 const DEFAULTS: Omit<UserSettings, 'user_id' | 'created_at' | 'updated_at'> = {
   language: 'es',
   push_notifications: true,
   reminder_notifications: true,
   reminder_alert_style: DEFAULT_REMINDER_ALERT_STYLE,
+  reminder_alert_sound: DEFAULT_REMINDER_ALERT_SOUND,
+  reminder_alert_vibration: DEFAULT_REMINDER_ALERT_VIBRATION,
   auto_send_audio: false,
   biometric_lock: false,
   preferred_name: '',
@@ -57,28 +79,38 @@ const DEFAULTS: Omit<UserSettings, 'user_id' | 'created_at' | 'updated_at'> = {
 
 type UserPreferencesContextValue = {
   isLoading: boolean;
+  /** App is Spanish-only; kept for API compatibility. */
   language: AppLanguage;
   pushNotifications: boolean;
   reminderNotifications: boolean;
   reminderAlertStyle: ReminderAlertStyle;
+  reminderAlertSound: ReminderAlertSoundId;
+  reminderAlertVibration: ReminderAlertVibrationId;
+  dailySummaryEnabled: boolean;
+  deviceCalendarSyncEnabled: boolean;
   autoSendVoice: boolean;
   /** @deprecated Use appLockMethod !== 'none' */
   biometricLock: boolean;
   appLockMethod: AppLockMethod;
   appLockDelaySeconds: AppLockDelaySeconds;
   homeWidgetEnabled: boolean;
+  focusLockIntensity: FocusLockIntensity;
   preferredName: string;
   plan: AppPlan;
-  setLanguage: (value: AppLanguage) => Promise<void>;
   setPushNotifications: (value: boolean) => Promise<void>;
   setReminderNotifications: (value: boolean) => Promise<void>;
   setReminderAlertStyle: (value: ReminderAlertStyle) => Promise<void>;
+  setReminderAlertSound: (value: ReminderAlertSoundId) => Promise<void>;
+  setReminderAlertVibration: (value: ReminderAlertVibrationId) => Promise<void>;
+  setDailySummaryEnabled: (value: boolean) => Promise<void>;
+  setDeviceCalendarSyncEnabled: (value: boolean) => Promise<void>;
   setAutoSendVoice: (value: boolean) => Promise<void>;
   setBiometricLock: (value: boolean) => Promise<void>;
   enableAppLock: (method: Exclude<AppLockMethod, 'none'>) => Promise<void>;
   disableAppLock: () => Promise<void>;
   setAppLockDelaySeconds: (value: AppLockDelaySeconds) => Promise<void>;
   setHomeWidgetEnabled: (value: boolean) => Promise<void>;
+  setFocusLockIntensity: (value: FocusLockIntensity) => Promise<void>;
   setPreferredName: (value: string) => Promise<void>;
   setPlan: (value: AppPlan) => Promise<void>;
   /** Call after login to hydrate settings from the backend */
@@ -89,26 +121,38 @@ const UserPreferencesContext = createContext<UserPreferencesContextValue | null>
 
 export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [language, setLanguageState] = useState<AppLanguage>(DEFAULTS.language);
   const [pushNotifications, setPushNotificationsState] = useState(DEFAULTS.push_notifications);
   const [reminderNotifications, setReminderNotificationsState] = useState(DEFAULTS.reminder_notifications);
   const [reminderAlertStyle, setReminderAlertStyleState] = useState<ReminderAlertStyle>(
     DEFAULTS.reminder_alert_style,
   );
+  const [reminderAlertSound, setReminderAlertSoundState] = useState<ReminderAlertSoundId>(
+    DEFAULT_REMINDER_ALERT_SOUND,
+  );
+  const [reminderAlertVibration, setReminderAlertVibrationState] =
+    useState<ReminderAlertVibrationId>(DEFAULT_REMINDER_ALERT_VIBRATION);
+  const [dailySummaryEnabled, setDailySummaryEnabledState] = useState(true);
+  const [deviceCalendarSyncEnabled, setDeviceCalendarSyncEnabledState] = useState(false);
   const [autoSendVoice, setAutoSendVoiceState] = useState(DEFAULTS.auto_send_audio);
   const [appLockMethod, setAppLockMethodState] = useState<AppLockMethod>('none');
   const [appLockDelaySeconds, setAppLockDelaySecondsState] = useState<AppLockDelaySeconds>(
     DEFAULT_APP_LOCK_DELAY_SECONDS,
   );
   const [homeWidgetEnabled, setHomeWidgetEnabledState] = useState(false);
+  const [focusLockIntensity, setFocusLockIntensityState] = useState<FocusLockIntensity>(
+    DEFAULT_FOCUS_LOCK_INTENSITY,
+  );
   const [preferredName, setPreferredNameState] = useState(DEFAULTS.preferred_name);
   const [plan, setPlanState] = useState<AppPlan>(DEFAULTS.plan);
 
   function applySettings(s: Partial<typeof DEFAULTS>) {
-    if (s.language === 'es' || s.language === 'en') setLanguageState(s.language);
     if (typeof s.push_notifications === 'boolean') setPushNotificationsState(s.push_notifications);
     if (typeof s.reminder_notifications === 'boolean') setReminderNotificationsState(s.reminder_notifications);
     if (s.reminder_alert_style) setReminderAlertStyleState(parseReminderAlertStyle(s.reminder_alert_style));
+    if (s.reminder_alert_sound) setReminderAlertSoundState(parseReminderAlertSound(s.reminder_alert_sound));
+    if (s.reminder_alert_vibration) {
+      setReminderAlertVibrationState(parseReminderAlertVibration(s.reminder_alert_vibration));
+    }
     if (typeof s.auto_send_audio === 'boolean') setAutoSendVoiceState(s.auto_send_audio);
     if (typeof s.preferred_name === 'string') setPreferredNameState(s.preferred_name);
     if (s.plan === 'free' || s.plan === 'pro') setPlanState(s.plan);
@@ -126,12 +170,28 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
 
     async function loadCached() {
       try {
-        const [raw, method, legacyBiometric, homeWidget, lockDelay] = await Promise.all([
+        const [
+          raw,
+          method,
+          legacyBiometric,
+          homeWidget,
+          lockDelay,
+          dailySummary,
+          deviceCalendar,
+          focusIntensity,
+          localSound,
+          localVibration,
+        ] = await Promise.all([
           AsyncStorage.getItem(CACHE_KEY),
           AsyncStorage.getItem(APP_LOCK_METHOD_KEY),
           AsyncStorage.getItem(LEGACY_BIOMETRIC_KEY),
           AsyncStorage.getItem(HOME_WIDGET_ENABLED_KEY),
           AsyncStorage.getItem(APP_LOCK_DELAY_KEY),
+          AsyncStorage.getItem(DAILY_SUMMARY_ENABLED_KEY),
+          AsyncStorage.getItem(DEVICE_CALENDAR_SYNC_KEY),
+          AsyncStorage.getItem(FOCUS_LOCK_INTENSITY_KEY),
+          AsyncStorage.getItem(REMINDER_ALERT_SOUND_LOCAL_KEY),
+          AsyncStorage.getItem(REMINDER_ALERT_VIBRATION_LOCAL_KEY),
         ]);
         if (!isMounted) return;
         if (raw) applySettings(JSON.parse(raw) as Partial<typeof DEFAULTS>);
@@ -146,7 +206,22 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
           setHomeWidgetEnabledState(true);
         }
 
+        if (dailySummary === 'false') {
+          setDailySummaryEnabledState(false);
+        }
+
+        if (deviceCalendar === 'true') {
+          setDeviceCalendarSyncEnabledState(true);
+        }
+
         setAppLockDelaySecondsState(parseAppLockDelaySeconds(lockDelay));
+        setFocusLockIntensityState(parseFocusLockIntensity(focusIntensity));
+        if (localSound) {
+          setReminderAlertSoundState(parseReminderAlertSound(localSound));
+        }
+        if (localVibration) {
+          setReminderAlertVibrationState(parseReminderAlertVibration(localVibration));
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -163,6 +238,15 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       const settings = await getMySettings();
       applySettings(settings);
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(settings));
+      // Prefer device-local custom/system selection over backend enum.
+      const localSound = await AsyncStorage.getItem(REMINDER_ALERT_SOUND_LOCAL_KEY);
+      if (localSound === 'custom' || localSound === 'system' || localSound === 'ringtone' || localSound === 'kivo_clear') {
+        setReminderAlertSoundState(parseReminderAlertSound(localSound));
+      }
+      const localVibration = await AsyncStorage.getItem(REMINDER_ALERT_VIBRATION_LOCAL_KEY);
+      if (localVibration) {
+        setReminderAlertVibrationState(parseReminderAlertVibration(localVibration));
+      }
     } catch {
       // keep cached values if network is unavailable
     }
@@ -179,11 +263,6 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const setLanguage = useCallback(async (value: AppLanguage) => {
-    setLanguageState(value);
-    await persist({ language: value });
-  }, []);
-
   const setPushNotifications = useCallback(async (value: boolean) => {
     setPushNotificationsState(value);
     await persist({ push_notifications: value });
@@ -197,6 +276,31 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const setReminderAlertStyle = useCallback(async (value: ReminderAlertStyle) => {
     setReminderAlertStyleState(value);
     await persist({ reminder_alert_style: value });
+  }, []);
+
+  const setReminderAlertSound = useCallback(async (value: ReminderAlertSoundId) => {
+    setReminderAlertSoundState(value);
+    await AsyncStorage.setItem(REMINDER_ALERT_SOUND_LOCAL_KEY, value);
+    // Backend only needs bundled ids; custom stays device-local.
+    if (value === 'system' || value === 'kivo_clear') {
+      await persist({ reminder_alert_sound: value });
+    }
+  }, []);
+
+  const setReminderAlertVibration = useCallback(async (value: ReminderAlertVibrationId) => {
+    setReminderAlertVibrationState(value);
+    await AsyncStorage.setItem(REMINDER_ALERT_VIBRATION_LOCAL_KEY, value);
+    await persist({ reminder_alert_vibration: value });
+  }, []);
+
+  const setDailySummaryEnabled = useCallback(async (value: boolean) => {
+    setDailySummaryEnabledState(value);
+    await AsyncStorage.setItem(DAILY_SUMMARY_ENABLED_KEY, value ? 'true' : 'false');
+  }, []);
+
+  const setDeviceCalendarSyncEnabled = useCallback(async (value: boolean) => {
+    setDeviceCalendarSyncEnabledState(value);
+    await AsyncStorage.setItem(DEVICE_CALENDAR_SYNC_KEY, value ? 'true' : 'false');
   }, []);
 
   const setAutoSendVoice = useCallback(async (value: boolean) => {
@@ -235,6 +339,11 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(HOME_WIDGET_ENABLED_KEY, value ? 'true' : 'false');
   }, []);
 
+  const setFocusLockIntensity = useCallback(async (value: FocusLockIntensity) => {
+    setFocusLockIntensityState(value);
+    await AsyncStorage.setItem(FOCUS_LOCK_INTENSITY_KEY, value);
+  }, []);
+
   const setPreferredName = useCallback(async (value: string) => {
     const next = value.trim();
     setPreferredNameState(next);
@@ -251,54 +360,71 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(
     () => ({
       isLoading,
-      language,
+      language: 'es' as AppLanguage,
       pushNotifications,
       reminderNotifications,
       reminderAlertStyle,
+      reminderAlertSound,
+      reminderAlertVibration,
+      dailySummaryEnabled,
+      deviceCalendarSyncEnabled,
       autoSendVoice,
       biometricLock,
       appLockMethod,
       appLockDelaySeconds,
       homeWidgetEnabled,
+      focusLockIntensity,
       preferredName,
       plan,
-      setLanguage,
       setPushNotifications,
       setReminderNotifications,
       setReminderAlertStyle,
+      setReminderAlertSound,
+      setReminderAlertVibration,
+      setDailySummaryEnabled,
+      setDeviceCalendarSyncEnabled,
       setAutoSendVoice,
       setBiometricLock,
       enableAppLock,
       disableAppLock,
       setAppLockDelaySeconds,
       setHomeWidgetEnabled,
+      setFocusLockIntensity,
       setPreferredName,
       setPlan,
       loadFromBackend,
     }),
     [
       isLoading,
-      language,
       pushNotifications,
       reminderNotifications,
       reminderAlertStyle,
+      reminderAlertSound,
+      reminderAlertVibration,
+      dailySummaryEnabled,
+      deviceCalendarSyncEnabled,
       autoSendVoice,
       biometricLock,
       appLockMethod,
       appLockDelaySeconds,
       homeWidgetEnabled,
+      focusLockIntensity,
       preferredName,
       plan,
-      setLanguage,
       setPushNotifications,
       setReminderNotifications,
       setReminderAlertStyle,
+      setReminderAlertSound,
+      setReminderAlertVibration,
+      setDailySummaryEnabled,
+      setDeviceCalendarSyncEnabled,
       setAutoSendVoice,
       setBiometricLock,
       enableAppLock,
       disableAppLock,
       setAppLockDelaySeconds,
       setHomeWidgetEnabled,
+      setFocusLockIntensity,
       setPreferredName,
       setPlan,
       loadFromBackend,

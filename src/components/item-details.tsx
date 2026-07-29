@@ -78,23 +78,37 @@ export function TaskDetailsContent({ task }: { task: TaskItem }) {
 export function EventDetailsContent({ event }: { event: CalendarEvent }) {
   const isReminder = event.type === 'reminder';
   const isMeeting = event.type === 'meeting';
-  const showDetails = (isReminder || isMeeting) && event.description;
+  const isDevice = event.source === 'device';
+  const showDetails = (isReminder || isMeeting || isDevice) && event.description;
 
   return (
     <View className="gap-3">
       <DetailRow label="Fecha" value={formatLongDate(event.scheduledAt)} icon="calendar-outline" />
-      <DetailRow label="Hora" value={event.time} icon="time-outline" />
-      {!isReminder && !isMeeting ? (
+      <DetailRow
+        label="Hora"
+        value={event.endTime ? `${event.time} – ${event.endTime}` : event.time}
+        icon="time-outline"
+      />
+      {isDevice ? (
+        <DetailRow
+          label="Origen"
+          value={event.calendarName ? `Calendario · ${event.calendarName}` : 'Calendario del teléfono'}
+          icon="calendar-outline"
+        />
+      ) : null}
+      {!isReminder && !isMeeting && !isDevice ? (
         <DetailRow label="Tipo" value="Evento" icon="bookmark-outline" />
       ) : null}
       {showDetails ? (
         <DetailRow label="Detalles" value={event.description!} icon="document-text-outline" />
       ) : null}
-      <DetailRow
-        label="Estado"
-        value={event.status === 'completed' ? 'Completado' : 'Pendiente'}
-        icon="checkbox-outline"
-      />
+      {!isDevice ? (
+        <DetailRow
+          label="Estado"
+          value={event.status === 'completed' ? 'Completado' : 'Pendiente'}
+          icon="checkbox-outline"
+        />
+      ) : null}
       {event.location ? (
         <DetailRow label="Ubicación" value={event.location} icon="location-outline" />
       ) : null}

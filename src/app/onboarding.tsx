@@ -23,7 +23,7 @@ export default function OnboardingRoute() {
   const [pendingLockMethod, setPendingLockMethod] = useState<AppLockMethod>('none');
 
   if (!isAuthenticated) {
-    return <Redirect href="/login" />;
+    return <Redirect href="/welcome" />;
   }
 
   if (hasCompletedOnboarding) {

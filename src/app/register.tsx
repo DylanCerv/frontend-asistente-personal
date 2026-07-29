@@ -8,9 +8,9 @@ import { RegisterScreen } from '@/screens/auth/RegisterScreen';
 
 export default function RegisterRoute() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, signUp } = useAuth();
+  const { isAuthenticated, isLoading, signUp, signInWithGoogle } = useAuth();
   const { setPreferredName } = useUserPreferences();
-  const { hasCompletedOnboarding, beginOnboarding } = useAppFlow();
+  const { hasCompletedOnboarding, beginOnboarding, completeOnboarding } = useAppFlow();
   const [error, setError] = useState<string | null>(null);
 
   if (isAuthenticated) {
@@ -26,7 +26,24 @@ export default function RegisterRoute() {
       router.replace('/onboarding');
     } catch (caughtError) {
       setError(
-        caughtError instanceof Error ? caughtError.message : 'No se pudo crear la cuenta. Intenta de nuevo.',
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'No se pudo crear la cuenta. Intenta de nuevo.',
+      );
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    try {
+      setError(null);
+      await signInWithGoogle();
+      await completeOnboarding();
+      router.replace('/(main)');
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'No se pudo continuar con Google',
       );
     }
   }
@@ -34,6 +51,7 @@ export default function RegisterRoute() {
   return (
     <RegisterScreen
       onSignUp={handleSignUp}
+      onGoogleSignIn={handleGoogleSignIn}
       onSignIn={() => router.replace('/login')}
       onBackFromEmailForm={() => setError(null)}
       loading={isLoading}

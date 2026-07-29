@@ -5,5 +5,8 @@ import SwiftUI
 struct KivoTodayWidgetBundle: WidgetBundle {
   var body: some Widget {
     KivoTodayWidget()
+    KivoPriorityWidget()
+    KivoCaptureWidget()
+    KivoFocusPointsWidget()
   }
 }

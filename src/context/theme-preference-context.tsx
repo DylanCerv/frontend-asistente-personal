@@ -4,14 +4,13 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
 import { colorScheme as nativeWindColorScheme } from 'nativewind';
 
 export type ThemeMode = 'light' | 'dark';
 
-/** Controls in-app theme. Status bar and navigation follow the same preference. */
+/** App is dark-first during the redesign. Light mode stays available in the API but is locked off. */
 type ThemePreferenceContextValue = {
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;
@@ -21,23 +20,25 @@ type ThemePreferenceContextValue = {
 const ThemePreferenceContext = createContext<ThemePreferenceContextValue | null>(null);
 
 export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('light');
-
   useEffect(() => {
-    nativeWindColorScheme.set(mode);
-  }, [mode]);
+    nativeWindColorScheme.set('dark');
+  }, []);
+
+  const setMode = useCallback((_mode: ThemeMode) => {
+    nativeWindColorScheme.set('dark');
+  }, []);
 
   const toggleMode = useCallback(() => {
-    setMode((current) => (current === 'light' ? 'dark' : 'light'));
+    nativeWindColorScheme.set('dark');
   }, []);
 
   const value = useMemo(
     () => ({
-      mode,
+      mode: 'dark' as const,
       setMode,
       toggleMode,
     }),
-    [mode, toggleMode],
+    [setMode, toggleMode],
   );
 
   return (

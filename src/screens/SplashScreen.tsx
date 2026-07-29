@@ -1,57 +1,200 @@
-import Ionicons from '@react-native-vector-icons/ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KivoLogo } from '@/components/kivo-logo';
-import { ScreenSafeArea } from '@/components/screen-safe-area';
-import { APP_NAME, APP_TAGLINE } from '@/constants/branding';
+import { APP_ACCENT, APP_BACKGROUND } from '@/constants/app-colors';
+import {
+  APP_NAME,
+  APP_SPLASH_STATUS,
+  APP_SPLASH_TAGLINE,
+  APP_VERSION_LABEL,
+} from '@/constants/branding';
+
+const ACCENT = APP_ACCENT;
+const BACKGROUND = APP_BACKGROUND;
 
 export function SplashScreen() {
+  const insets = useSafeAreaInsets();
+  const floatY = useSharedValue(0);
+  const lineScale = useSharedValue(0);
+  const lineGlow = useSharedValue(0);
+
+  useEffect(() => {
+    floatY.value = withDelay(
+      500,
+      withRepeat(
+        withSequence(
+          withTiming(-7, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+          withTiming(7, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        true,
+      ),
+    );
+
+    lineScale.value = withDelay(
+      720,
+      withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) }),
+    );
+    lineGlow.value = withDelay(
+      720,
+      withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }),
+    );
+  }, [floatY, lineGlow, lineScale]);
+
+  const logoFloatStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatY.value }],
+  }));
+
+  const lineStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: lineScale.value }],
+    opacity: 0.35 + lineGlow.value * 0.65,
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: lineGlow.value * 0.5,
+    transform: [{ scaleX: 0.4 + lineGlow.value * 0.6 }],
+  }));
+
   return (
-    <ScreenSafeArea className="bg-[#160A2A]">
-      <LinearGradient
-        colors={['#160A2A', '#3B0764', '#7C3AED', '#F8F0FF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        className="absolute inset-0"
-      />
-      <LinearGradient
-        colors={['rgba(255,255,255,0.26)', 'rgba(216,180,254,0.18)', 'rgba(255,255,255,0.00)']}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0.2, y: 0.8 }}
-        className="absolute inset-0"
-      />
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <View style={styles.background} />
 
-      <View className="flex-1 items-center justify-center px-6">
-        <View className="w-full max-w-sm items-center gap-6 rounded-[40px] border border-white/15 bg-white/10 px-6 py-8">
-          <View className="rounded-[34px] bg-white/15 p-3">
-            <KivoLogo size={108} />
-          </View>
+      <View
+        style={[
+          styles.content,
+          { paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}>
+        <View style={styles.center}>
+          <Animated.View
+            entering={FadeInDown.duration(700).delay(60).easing(Easing.out(Easing.cubic))}
+            style={styles.brandBlock}>
+            <Animated.View style={logoFloatStyle}>
+              <KivoLogo size={88} color={ACCENT} foldColor="#A78BFA" />
+            </Animated.View>
 
-          <View className="items-center gap-2">
-            <Text className="text-[42px] font-bold tracking-tight text-white">{APP_NAME}</Text>
-            <Text className="text-center text-base font-medium leading-6 text-white/80">
-              Tu asistente personal listo para organizar tu día.
-            </Text>
-          </View>
+            <Animated.Text
+              entering={FadeInDown.duration(650).delay(200).easing(Easing.out(Easing.cubic))}
+              style={styles.title}>
+              {APP_NAME}
+            </Animated.Text>
 
-          <View className="w-full gap-2 rounded-[26px] bg-white/10 p-3">
-            <View className="flex-row items-center gap-2 rounded-2xl bg-white/10 px-3 py-2">
-              <Ionicons name="mic-outline" size={16} color="#F5D0FE" />
-              <Text className="text-xs font-semibold text-white/85">Escucha tus notas</Text>
+            <Animated.Text entering={FadeIn.duration(600).delay(380)} style={styles.tagline}>
+              {APP_SPLASH_TAGLINE}
+            </Animated.Text>
+          </Animated.View>
+
+          <View style={styles.statusBlock}>
+            <View style={styles.lineTrack}>
+              <Animated.View style={[styles.lineGlow, glowStyle]} />
+              <Animated.View style={[styles.line, lineStyle]} />
             </View>
-            <View className="flex-row items-center gap-2 rounded-2xl bg-white/10 px-3 py-2">
-              <Ionicons name="calendar-outline" size={16} color="#F5D0FE" />
-              <Text className="text-xs font-semibold text-white/85">Organiza tareas y agenda</Text>
-            </View>
-          </View>
 
-          <View className="mt-2 flex-row items-center gap-3 rounded-full bg-white/10 px-4 py-2">
-            <ActivityIndicator size="small" color="#F5D0FE" />
-            <Text className="text-xs font-semibold text-white/75">{APP_TAGLINE}</Text>
+            <Animated.Text entering={FadeIn.duration(500).delay(920)} style={styles.status}>
+              {APP_SPLASH_STATUS}
+            </Animated.Text>
           </View>
         </View>
+
+        <Animated.Text entering={FadeIn.duration(500).delay(1050)} style={styles.version}>
+          {APP_VERSION_LABEL}
+        </Animated.Text>
       </View>
-    </ScreenSafeArea>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: BACKGROUND,
+  },
+  background: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: BACKGROUND,
+  },
+  content: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  brandBlock: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 42,
+    fontWeight: '700',
+    letterSpacing: -0.8,
+  },
+  tagline: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 3.2,
+    textTransform: 'uppercase',
+  },
+  statusBlock: {
+    position: 'absolute',
+    bottom: '18%',
+    width: '100%',
+    maxWidth: 220,
+    alignItems: 'center',
+    gap: 14,
+  },
+  lineTrack: {
+    width: '100%',
+    height: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  line: {
+    width: '100%',
+    height: StyleSheet.hairlineWidth + 1,
+    backgroundColor: ACCENT,
+    borderRadius: 2,
+  },
+  lineGlow: {
+    position: 'absolute',
+    width: '100%',
+    height: 8,
+    backgroundColor: ACCENT,
+    borderRadius: 8,
+    shadowColor: ACCENT,
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  status: {
+    color: ACCENT,
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+  },
+  version: {
+    textAlign: 'center',
+    color: '#3A3A3A',
+    fontSize: 11,
+    letterSpacing: 0.3,
+    paddingBottom: 12,
+  },
+});

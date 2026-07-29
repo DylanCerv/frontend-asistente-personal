@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kivo",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",
       "usesAppleSignIn": true,
@@ -19,6 +19,18 @@
     },
     "android": {
       "package": "com.kivo.app",
+      "permissions": [
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.WAKE_LOCK",
+        "android.permission.ACCESS_NOTIFICATION_POLICY",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +50,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#160A2A",
-          "android": {
-            "image": "./assets/images/kivo-logo.jpeg",
-            "imageWidth": 96
-          }
+          "backgroundColor": "#050505"
         }
       ],
       [

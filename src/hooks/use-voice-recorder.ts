@@ -1,10 +1,15 @@
 import {
   RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
   useAudioRecorder,
 } from 'expo-audio';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import {
+  beginAudioRecordingSession,
+  configureRecordingAudioMode,
+  ensureMicrophonePermission,
+  releaseAudioRecorderSession,
+} from '@/services/audio/audio-recorder-session';
 
 type RecorderState = 'idle' | 'recording' | 'recorded';
 
@@ -13,12 +18,16 @@ export function useVoiceRecorder() {
   const [state, setState] = useState<RecorderState>('idle');
   const [uri, setUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isStartingRef = useRef(false);
+  const stateRef = useRef<RecorderState>(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     return () => {
-      if (recorder.getStatus().isRecording) {
-        void recorder.stop();
-      }
+      void releaseAudioRecorderSession(recorder);
     };
   }, [recorder]);
 
@@ -29,30 +38,33 @@ export function useVoiceRecorder() {
   }, []);
 
   const startRecording = useCallback(async () => {
+    if (isStartingRef.current || stateRef.current === 'recording') {
+      return;
+    }
+
+    isStartingRef.current = true;
+
     try {
       setError(null);
 
-      const permission = await requestRecordingPermissionsAsync();
-      if (!permission.granted) {
+      const granted = await ensureMicrophonePermission();
+      if (!granted) {
         throw new Error('Se necesita permiso de micrófono para grabar');
       }
 
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
+      await configureRecordingAudioMode();
+      // Release any previous session so Android can prepare/record again safely.
+      await releaseAudioRecorderSession(recorder);
+      await beginAudioRecordingSession(recorder, RecordingPresets.HIGH_QUALITY);
 
-      const status = recorder.getStatus();
-      if (!status.canRecord) {
-        await recorder.prepareToRecordAsync();
-      }
-
-      recorder.record();
       setUri(null);
       setState('recording');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar la grabación');
       setState('idle');
+      await releaseAudioRecorderSession(recorder);
+    } finally {
+      isStartingRef.current = false;
     }
   }, [recorder]);
 
@@ -70,6 +82,7 @@ export function useVoiceRecorder() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo detener la grabación');
       setState('idle');
+      await releaseAudioRecorderSession(recorder);
     }
   }, [recorder]);
 

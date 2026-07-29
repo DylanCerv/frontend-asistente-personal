@@ -102,12 +102,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedSession = await getStoredSession();
         if (!storedSession) return;
 
+        const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+          Promise.race([
+            promise,
+            new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error('Auth bootstrap timeout')), ms);
+            }),
+          ]);
+
         try {
-          const apiUser = await getMeRequest();
+          const apiUser = await withTimeout(getMeRequest(), 8000);
           if (isMounted) setUser(mapApiUser(apiUser));
           return;
         } catch {
-          const refreshed = await refreshSessionRequest(storedSession.refreshToken);
+          const refreshed = await withTimeout(
+            refreshSessionRequest(storedSession.refreshToken),
+            8000,
+          );
           await setStoredSession(refreshed.session);
           if (isMounted) setUser(mapApiUser(refreshed.user));
         }

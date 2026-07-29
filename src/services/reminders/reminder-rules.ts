@@ -1,7 +1,10 @@
 import type { Priority } from '@/types/assistant';
 import type { MemoryRecord } from '@/types/record';
+import { todayIso } from '@/utils/date-utils';
 
 export type ReminderAlertLevel = 'alarm' | 'notification';
+
+export type ReminderNotificationKind = 'critical' | 'reminder' | 'daily-summary';
 
 export type ReminderScheduleItem = {
   id: string;
@@ -10,6 +13,7 @@ export type ReminderScheduleItem = {
   title: string;
   body: string;
   alertLevel: ReminderAlertLevel;
+  kind: ReminderNotificationKind;
 };
 
 const DAY_OFFSETS_BY_PRIORITY: Record<Priority, number[]> = {
@@ -18,12 +22,18 @@ const DAY_OFFSETS_BY_PRIORITY: Record<Priority, number[]> = {
   low: [1, 0],
 };
 
-const EXACT_ALERT_ID_PREFIX = 'kivo-exact-';
-const OFFSET_ALERT_ID_PREFIX = 'asistente-reminder-';
+export const EXACT_ALERT_ID_PREFIX = 'kivo-exact-';
+export const OFFSET_ALERT_ID_PREFIX = 'asistente-reminder-';
+export const DAILY_SUMMARY_ID = 'kivo-summary-daily';
+export const SNOOZE_ALERT_ID_PREFIX = 'kivo-snooze-';
 
 /** Soft day reminders fire at this local time (early risers plan their day from here). */
 export const SOFT_DAY_NOTIFICATION_HOUR = 5;
 export const SOFT_DAY_NOTIFICATION_MINUTE = 0;
+
+/** Daily assistant digest — same early window as soft day reminders. */
+export const DAILY_SUMMARY_HOUR = 5;
+export const DAILY_SUMMARY_MINUTE = 0;
 
 /** Backend default times when the user did not mention a specific clock time. */
 const IMPLICIT_DAY_TIMES = [
@@ -140,6 +150,18 @@ function isSchedulableRecord(record: MemoryRecord): boolean {
   return record.type === 'task' || record.type === 'reminder' || record.type === 'meeting';
 }
 
+function isCriticalRecord(record: MemoryRecord): boolean {
+  return (record.priority ?? 'medium') === 'high';
+}
+
+function resolveKind(
+  record: MemoryRecord,
+  alertLevel: ReminderAlertLevel,
+): ReminderNotificationKind {
+  if (alertLevel === 'alarm' || isCriticalRecord(record)) return 'critical';
+  return 'reminder';
+}
+
 function buildOffsetReminders(
   record: MemoryRecord,
   dueDate: Date,
@@ -156,25 +178,31 @@ function buildOffsetReminders(
     const triggerAt = subtractDays(startOfLocalDay(dueDate), daysBefore);
     if (triggerAt.getTime() <= now) continue;
 
+    const alertLevel: ReminderAlertLevel =
+      daysBefore === 0 && isCriticalRecord(record) ? 'alarm' : 'notification';
+
     items.push({
       id: `${OFFSET_ALERT_ID_PREFIX}${record.id}-d${daysBefore}`,
       recordId: record.id,
       triggerAt,
-      title: 'Kivo',
+      title: resolveKind(record, alertLevel) === 'critical' ? 'Alerta crítica' : 'Kivo',
       body: buildDayMessage(record, daysBefore),
-      alertLevel: 'notification',
+      alertLevel,
+      kind: resolveKind(record, alertLevel),
     });
   }
 
   const oneHourBefore = new Date(dueDate.getTime() - 60 * 60 * 1000);
   if (oneHourBefore.getTime() > now && priority !== 'low' && hasExplicitTime(record)) {
+    const alertLevel: ReminderAlertLevel = isCriticalRecord(record) ? 'alarm' : 'notification';
     items.push({
       id: `${OFFSET_ALERT_ID_PREFIX}${record.id}-h1`,
       recordId: record.id,
       triggerAt: oneHourBefore,
-      title: 'Kivo',
+      title: resolveKind(record, alertLevel) === 'critical' ? 'Alerta crítica' : 'Kivo',
       body: `En 1 hora: ${record.title}`,
-      alertLevel: 'notification',
+      alertLevel,
+      kind: resolveKind(record, alertLevel),
     });
   }
 
@@ -185,17 +213,101 @@ function buildExactTimeReminder(record: MemoryRecord, now: number): ReminderSche
   const triggerAt = parseExactDueDate(record);
   if (!triggerAt || triggerAt.getTime() <= now) return null;
 
+  const alertLevel: ReminderAlertLevel = 'alarm';
+  const kind = resolveKind(record, alertLevel);
+
   return {
     id: `${EXACT_ALERT_ID_PREFIX}${record.id}`,
     recordId: record.id,
     triggerAt,
-    title: record.title,
+    title: kind === 'critical' ? 'Alerta crítica' : record.title,
     body: buildExactTimeMessage(record, triggerAt),
-    alertLevel: 'alarm',
+    alertLevel,
+    kind,
   };
 }
 
-export function buildReminderSchedule(records: MemoryRecord[]): ReminderScheduleItem[] {
+export type DailySummaryStats = {
+  meetingsToday: number;
+  tasksToday: number;
+  highPriorityToday: number;
+  lines: string[];
+};
+
+export function buildDailySummaryStats(
+  records: MemoryRecord[],
+  todayIso: string,
+  extras?: { deviceMeetingsToday?: number },
+): DailySummaryStats {
+  const dueToday = getDueTodayRecords(records, todayIso);
+  const meetingsToday =
+    dueToday.filter((item) => item.type === 'meeting').length +
+    Math.max(0, extras?.deviceMeetingsToday ?? 0);
+  const tasksToday = dueToday.filter(
+    (item) => item.type === 'task' || item.type === 'reminder',
+  ).length;
+  const highPriorityToday = dueToday.filter((item) => isCriticalRecord(item)).length;
+
+  const lines: string[] = [];
+  if (meetingsToday > 0) {
+    lines.push(
+      `${meetingsToday} ${meetingsToday === 1 ? 'reunión programada' : 'reuniones programadas'} hoy`,
+    );
+  }
+  if (tasksToday > 0) {
+    lines.push(
+      `${tasksToday} ${tasksToday === 1 ? 'tarea pendiente' : 'tareas pendientes'} para hoy`,
+    );
+  }
+  if (highPriorityToday > 0) {
+    lines.push(
+      `${highPriorityToday} ${highPriorityToday === 1 ? 'asunto urgente' : 'asuntos urgentes'} requieren atención`,
+    );
+  }
+  if (lines.length === 0) {
+    lines.push('No tienes pendientes críticos. Buen momento para planear.');
+  }
+
+  return { meetingsToday, tasksToday, highPriorityToday, lines };
+}
+
+function nextDailySummaryTrigger(from = new Date()): Date {
+  const trigger = new Date(
+    from.getFullYear(),
+    from.getMonth(),
+    from.getDate(),
+    DAILY_SUMMARY_HOUR,
+    DAILY_SUMMARY_MINUTE,
+    0,
+    0,
+  );
+  if (trigger.getTime() <= from.getTime()) {
+    trigger.setDate(trigger.getDate() + 1);
+  }
+  return trigger;
+}
+
+export function buildDailySummaryScheduleItem(
+  records: MemoryRecord[],
+  todayIso: string,
+  now = new Date(),
+): ReminderScheduleItem {
+  const stats = buildDailySummaryStats(records, todayIso);
+  return {
+    id: DAILY_SUMMARY_ID,
+    recordId: 'daily-summary',
+    triggerAt: nextDailySummaryTrigger(now),
+    title: 'Resumen del día',
+    body: stats.lines.join(' · '),
+    alertLevel: 'notification',
+    kind: 'daily-summary',
+  };
+}
+
+export function buildReminderSchedule(
+  records: MemoryRecord[],
+  options?: { includeDailySummary?: boolean; todayIso?: string },
+): ReminderScheduleItem[] {
   const now = Date.now();
   const items: ReminderScheduleItem[] = [];
 
@@ -211,9 +323,12 @@ export function buildReminderSchedule(records: MemoryRecord[]): ReminderSchedule
       items.push(exactItem);
     }
 
-    items.push(
-      ...buildOffsetReminders(record, dueDate, now, Boolean(exactItem)),
-    );
+    items.push(...buildOffsetReminders(record, dueDate, now, Boolean(exactItem)));
+  }
+
+  if (options?.includeDailySummary !== false) {
+    const day = options?.todayIso ?? todayIso();
+    items.push(buildDailySummaryScheduleItem(records, day, new Date(now)));
   }
 
   return items;
@@ -223,5 +338,17 @@ export function getDueTodayRecords(records: MemoryRecord[], today: string): Memo
   return records.filter((record) => {
     if (!isSchedulableRecord(record)) return false;
     return record.scheduledAt === today;
+  });
+}
+
+export function getCriticalRecordsForAlerts(
+  records: MemoryRecord[],
+  todayIso: string,
+): MemoryRecord[] {
+  return records.filter((record) => {
+    if (!isSchedulableRecord(record)) return false;
+    if (!isCriticalRecord(record)) return false;
+    if (record.scheduledAt && record.scheduledAt < todayIso) return true;
+    return record.scheduledAt === todayIso;
   });
 }

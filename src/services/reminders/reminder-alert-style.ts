@@ -21,7 +21,3 @@ export function shouldPlaySound(
 export function shouldVibrate(style: ReminderAlertStyle): boolean {
   return style === 'vibration' || style === 'both';
 }
-
-export function buildVibrationPattern(isAlarm: boolean): number[] {
-  return isAlarm ? [0, 400, 200, 400, 200, 400] : [0, 200];
-}
