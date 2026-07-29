@@ -1,56 +1,47 @@
-# Asistente
+# Kivo
 
 > **Habla. Nosotros organizamos.**
 
-Asistente personal con IA para iOS, Android y Web. Habla o escribe; la IA organiza tareas, eventos y recordatorios.
+Asistente personal con IA para iOS y Android (Expo). Habla o escribe; el backend organiza tareas, eventos y recordatorios en Supabase.
 
-## Documentación completa
+## Documentación
 
-**Lee [DOCUMENTATION.md](./DOCUMENTATION.md)** — guía oficial v1 para el equipo. Incluye:
-
-- Arquitectura y estructura de archivos
-- Flujo de pantallas (onboarding → login → app)
-- Captura por voz + Whisper + endpoint IA
-- Agenda con filtros por rango y reportes PDF
-- Accesos rápidos y configuración `.env`
-- Changelog y roadmap
+**[DOCUMENTATION.md](./DOCUMENTATION.md)** — arquitectura, auth, voz, `.env`, Expo Go vs development build y seguridad.
 
 ## Inicio rápido
 
 ```bash
 npm install
 cp .env.example .env
+# EXPO_PUBLIC_API_BASE_URL=http://<IP-de-tu-PC>:3000/api
+# EXPO_PUBLIC_SUPABASE_URL=https://….supabase.co
 npx expo start
 ```
 
-### Variables de entorno
+El backend debe estar corriendo (`backend-asistente-personal`: `npm run dev:all`) con `DEV_MOCK_AUTH=false` y las keys de Supabase/OpenAI.
+
+### Variables principales
 
 ```env
-EXPO_PUBLIC_OPENAI_API_KEY=sk-...
-EXPO_PUBLIC_ASSISTANT_API_URL=https://tu-api.com/assistant/chat
+EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:3000/api
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=….apps.googleusercontent.com
 ```
 
-### Login mock
-
-- Email: `e1@gmail.com`
-- Contraseña: `ejem1234`
+Chat y voz usan el mismo backend (`/api/chat`, `/api/audio`). **No** pongas la OpenAI key en el frontend.
 
 ## Stack
 
 - Expo 54 · React Native · expo-router 6
-- NativeWind 4 (Tailwind)
-- TypeScript
-- Whisper (OpenAI) · expo-print · expo-quick-actions
+- NativeWind 4 · TypeScript
+- Backend Express + Supabase + OpenAI (proyecto hermano)
 
 ## Scripts
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm start` | Inicia Expo |
-| `npm run ios` | iOS |
-| `npm run android` | Android |
-| `npm run web` | Web |
+| `npm start` | Expo (Expo Go por defecto) |
+| `npm run android` / `ios` | Abrir en emulador / dispositivo |
+| `npm run lint` | ESLint |
 
----
-
-Ver [DOCUMENTATION.md](./DOCUMENTATION.md) para detalles completos de la v1.
+Para notificaciones y widgets: development build o APK con `EXPO_PUBLIC_NATIVE_BUILD=1` (ver DOCUMENTATION.md).

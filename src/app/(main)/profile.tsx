@@ -2,7 +2,7 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -198,6 +198,10 @@ export default function ProfileScreen() {
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatarUrl ?? null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isTogglingCalendar, setIsTogglingCalendar] = useState(false);
+
+  useEffect(() => {
+    setAvatarUri(user?.avatarUrl ?? null);
+  }, [user?.avatarUrl]);
 
   const isAndroid = Platform.OS === 'android';
   const isIos = Platform.OS === 'ios';

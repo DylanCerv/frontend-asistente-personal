@@ -132,6 +132,7 @@ function PersonalDataForm({ onClose }: { onClose: () => void }) {
       if (avatarUri && !avatarUri.startsWith('http') && user?.id) {
         const publicUrl = await uploadAvatar(user.id, avatarUri);
         updateAvatar(publicUrl);
+        setAvatarUri(publicUrl);
       }
 
       showAppAlert('Guardado', 'Tus datos personales se actualizaron.');

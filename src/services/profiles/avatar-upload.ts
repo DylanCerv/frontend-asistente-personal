@@ -38,10 +38,9 @@ export async function uploadAvatar(userId: string, localUri: string): Promise<st
     throw new Error(`Upload failed: ${err}`);
   }
 
-  // Build the public URL
-  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${AVATARS_BUCKET}/${storagePath}`;
+  // Same storage path is upserted; bust CDN/image cache with a unique query.
+  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${AVATARS_BUCKET}/${storagePath}?t=${Date.now()}`;
 
-  // Save in profile
   await updateMyProfile({ avatarUrl: publicUrl });
 
   return publicUrl;
