@@ -7,11 +7,8 @@ import { APP_ACCENT, APP_ON_ACCENT } from '@/constants/app-colors';
 
 function shouldHideFloatingMic(segments: string[]): boolean {
   const last = segments[segments.length - 1];
-  return (
-    last === 'index' ||
-    last === 'assistant' ||
-    (segments.length === 1 && segments[0] === '(main)')
-  );
+  // Hide on Assistant (has its own capture UI). Show on Focus and the rest.
+  return last === 'assistant';
 }
 
 export function FloatingMicButton() {

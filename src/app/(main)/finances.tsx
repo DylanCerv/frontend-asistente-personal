@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 
-import { AgendaCalendar, CalendarBulkActions, useAgendaCalendarState, type VisibleMonth } from '@/components/agenda-calendar';
+import { AgendaCalendar, useAgendaCalendarState } from '@/components/agenda-calendar';
 import { ScreenAccentBar } from '@/components/screen-accent-bar';
 import { ExpandableItemCard, DetailRow } from '@/components/expandable-item-card';
 import { ScreenHeader } from '@/components/screen-header';
@@ -124,10 +124,6 @@ export default function FinancesScreen() {
   const { records, isRecordsLoading, recordsError, refreshRecords } = useAssistant();
   const { selectedDates, onChange } = useAgendaCalendarState(todayIso());
   const accent = useScreenAccent('finances');
-  const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(() => {
-    const today = new Date();
-    return { year: today.getFullYear(), month: today.getMonth() };
-  });
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -203,16 +199,7 @@ export default function FinancesScreen() {
           selectedDates={selectedDates}
           markedDates={markedDates}
           onChange={onChange}
-          onVisibleMonthChange={setVisibleMonth}
           accent={accent}
-          footerContent={
-            <CalendarBulkActions
-              selectedDates={selectedDates}
-              visibleMonth={visibleMonth}
-              onChange={onChange}
-              accent={accent}
-            />
-          }
         />
 
         <Pressable

@@ -1,6 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from '@react-native-vector-icons/ionicons';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
 import { VoiceReviewControls } from '@/components/assistant/voice-review-controls';
 import { VoiceWaveform } from '@/components/assistant/voice-waveform';
 import { KeyboardIcon } from '@/components/icons/keyboard-icon';
+import { KivoWordmark } from '@/components/kivo-wordmark';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 import {
   APP_ACCENT,
@@ -37,28 +37,59 @@ export default function AssistantScreen() {
   const router = useRouter();
   const { autoRecord } = useLocalSearchParams<{ autoRecord?: string }>();
   const { user } = useAuth();
-  const { autoSendVoice } = useUserPreferences();
+  const { preferredName, autoSendVoice } = useUserPreferences();
   const { sendTextMessage, sendVoiceMessage, isProcessing, processingStep } = useAssistant();
   const { isRecording, hasRecording, uri, error, startRecording, stopRecording, reset } =
     useVoiceRecorder();
 
+  const displayName = preferredName.trim() || user?.name?.split(' ')[0] || '';
+  const headline = displayName ? `¿Qué necesitas ${displayName}?` : '¿Qué necesitas?';
   const [input, setInput] = useState('');
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [resultFeedback, setResultFeedback] = useState<string | null>(null);
   const [isPlayingReview, setIsPlayingReview] = useState(false);
   const [examples, setExamples] = useState<VoiceExample[]>(() => pickVoiceExamples());
   const isAutoStartingRef = useRef(false);
   const autoSendInFlightUriRef = useRef<string | null>(null);
+  const feedbackClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canSendText = input.trim().length > 0 && !isProcessing && !isRecording && !hasRecording;
   const isListening = isRecording;
   const showBusy = isProcessing && !isListening;
   const showReview = hasRecording && !!uri && !isProcessing && !autoSendVoice;
 
+  const clearFeedbackTimer = useCallback(() => {
+    if (feedbackClearTimerRef.current) {
+      clearTimeout(feedbackClearTimerRef.current);
+      feedbackClearTimerRef.current = null;
+    }
+  }, []);
+
+  const showResultFeedback = useCallback(
+    (reply: string) => {
+      clearFeedbackTimer();
+      setResultFeedback(reply);
+      feedbackClearTimerRef.current = setTimeout(() => {
+        setResultFeedback(null);
+        feedbackClearTimerRef.current = null;
+      }, 4500);
+    },
+    [clearFeedbackTimer],
+  );
+
   useFocusEffect(
     useCallback(() => {
       setExamples(pickVoiceExamples());
-    }, []),
+      return () => {
+        clearFeedbackTimer();
+        setResultFeedback(null);
+      };
+    }, [clearFeedbackTimer]),
   );
+
+  useEffect(() => {
+    return () => clearFeedbackTimer();
+  }, [clearFeedbackTimer]);
 
   useEffect(() => {
     if (error) setStatusError(error);
@@ -70,8 +101,13 @@ export default function AssistantScreen() {
 
     autoSendInFlightUriRef.current = uri;
     setStatusError(null);
+    clearFeedbackTimer();
+    setResultFeedback(null);
 
     void sendVoiceMessage(uri)
+      .then((reply) => {
+        if (reply) showResultFeedback(reply);
+      })
       .catch(() => {
         setStatusError('No se pudo procesar el audio. Intenta de nuevo.');
       })
@@ -81,7 +117,17 @@ export default function AssistantScreen() {
         }
         reset();
       });
-  }, [autoSendVoice, hasRecording, uri, isProcessing, isRecording, sendVoiceMessage, reset]);
+  }, [
+    autoSendVoice,
+    hasRecording,
+    uri,
+    isProcessing,
+    isRecording,
+    sendVoiceMessage,
+    reset,
+    clearFeedbackTimer,
+    showResultFeedback,
+  ]);
 
   useEffect(() => {
     if (autoRecord !== '1') return;
@@ -106,6 +152,8 @@ export default function AssistantScreen() {
     if (isProcessing || hasRecording) return;
 
     setStatusError(null);
+    clearFeedbackTimer();
+    setResultFeedback(null);
 
     if (isRecording) {
       await stopRecording();
@@ -118,7 +166,10 @@ export default function AssistantScreen() {
   async function sendVoiceUri(audioUri: string) {
     try {
       setStatusError(null);
-      await sendVoiceMessage(audioUri);
+      clearFeedbackTimer();
+      setResultFeedback(null);
+      const reply = await sendVoiceMessage(audioUri);
+      if (reply) showResultFeedback(reply);
     } catch {
       setStatusError('No se pudo procesar el audio. Intenta de nuevo.');
     } finally {
@@ -134,6 +185,8 @@ export default function AssistantScreen() {
   function handleDeleteRecording() {
     if (isProcessing) return;
     setStatusError(null);
+    clearFeedbackTimer();
+    setResultFeedback(null);
     setIsPlayingReview(false);
     reset();
   }
@@ -141,6 +194,8 @@ export default function AssistantScreen() {
   async function handleRepeatRecording() {
     if (isProcessing) return;
     setStatusError(null);
+    clearFeedbackTimer();
+    setResultFeedback(null);
     reset();
     await startRecording();
   }
@@ -150,20 +205,31 @@ export default function AssistantScreen() {
     if (!text || !canSendText) return;
     setInput('');
     setStatusError(null);
-    await sendTextMessage(text);
+    clearFeedbackTimer();
+    setResultFeedback(null);
+    try {
+      const reply = await sendTextMessage(text);
+      if (reply) showResultFeedback(reply);
+    } catch {
+      setStatusError('No se pudo enviar el mensaje. Intenta de nuevo.');
+    }
   }
 
   const statusLabel = statusError
     ? statusError
-    : isListening
-      ? `${APP_NAME} está escuchando...`
-      : showReview
-        ? null
-        : showBusy
-          ? processingStep === 'transcribing' || processingStep === 'uploading'
-            ? 'Procesando tu audio...'
-            : 'Organizando...'
-          : 'Toca el micrófono para hablar';
+    : resultFeedback
+      ? resultFeedback
+      : isListening
+        ? `${APP_NAME} está escuchando...`
+        : showReview
+          ? null
+          : showBusy
+            ? processingStep === 'transcribing' || processingStep === 'uploading'
+              ? 'Procesando tu audio...'
+              : 'Organizando...'
+            : 'Toca el micrófono para hablar';
+
+  const statusColor = statusError ? '#F87171' : resultFeedback ? '#2DD4BF' : APP_ACCENT;
 
   return (
     <ScreenSafeArea edges={['top']}>
@@ -175,38 +241,17 @@ export default function AssistantScreen() {
           contentContainerClassName="flex-grow px-5 pb-8 pt-2"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <View className="mb-5 flex-row items-center gap-2.5">
-            <View
-              className="h-9 w-9 items-center justify-center overflow-hidden rounded-full"
-              style={{
-                backgroundColor: APP_SURFACE_SOFT,
-                borderColor: APP_BORDER,
-                borderWidth: 1,
-              }}>
-              {user?.avatarUrl ? (
-                <Image
-                  source={{ uri: user.avatarUrl }}
-                  style={{ width: 36, height: 36 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <Ionicons name="person" size={16} color={APP_ACCENT} />
-              )}
-            </View>
-            <Text className="text-[20px] font-bold" style={{ color: APP_ACCENT }}>
-              {APP_NAME}
-            </Text>
+          <View className="mb-5">
+            <KivoWordmark size={22} />
           </View>
 
           <View className="flex-1 items-center justify-center gap-5 py-4">
             <View className="items-center gap-2 px-2">
               <Text className="text-center text-[26px] font-bold leading-9 text-white">
-                ¿Qué necesitas recordar?
+                {headline}
               </Text>
               {statusLabel ? (
-                <Text
-                  className="text-center text-[14px]"
-                  style={{ color: statusError ? '#F87171' : APP_ACCENT }}>
+                <Text className="text-center text-[14px] leading-5" style={{ color: statusColor }}>
                   {statusLabel}
                 </Text>
               ) : null}

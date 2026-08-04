@@ -30,6 +30,9 @@ import { APP_NAME } from '@/constants/branding';
 
 const REGISTER_TAGLINE = 'Inteligencia cinética para tu flujo creativo.';
 
+/** Temporarily hide Google auth until OAuth is ready to ship. */
+const SHOW_GOOGLE_AUTH = false;
+
 type RegisterScreenProps = {
   onSignUp?: (data: { name: string; email: string; password: string }) => void;
   onGoogleSignIn?: () => void;
@@ -92,14 +95,17 @@ export function RegisterScreen({
           </View>
 
           <View style={styles.card}>
-            <SocialAuthButton
-              label="Continuar con Google"
-              onPress={onGoogleSignIn}
-              loading={loading}
-              disabled={loading}
-            />
-
-            <AuthDivider label="O regístrate con email" withLines={false} />
+            {SHOW_GOOGLE_AUTH ? (
+              <>
+                <SocialAuthButton
+                  label="Continuar con Google"
+                  onPress={onGoogleSignIn}
+                  loading={loading}
+                  disabled={loading}
+                />
+                <AuthDivider label="O regístrate con email" withLines={false} />
+              </>
+            ) : null}
 
             <AuthField
               label="Nombre completo"

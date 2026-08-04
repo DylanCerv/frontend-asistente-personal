@@ -7,6 +7,9 @@ import { AuthScreenShell } from '@/components/auth/auth-screen-shell';
 import { AuthSwitchLink } from '@/components/auth/auth-switch-link';
 import { SocialAuthButton } from '@/components/auth/social-auth-button';
 
+/** Temporarily hide Google auth until OAuth is ready to ship. */
+const SHOW_GOOGLE_AUTH = false;
+
 type LoginScreenProps = {
   onSignIn?: (credentials: { email: string; password: string }) => void;
   onGoogleSignIn?: () => void;
@@ -99,14 +102,17 @@ export function LoginScreen({
             </Text>
           </View>
 
-          <SocialAuthButton
-            label="Continuar con Google"
-            onPress={onGoogleSignIn}
-            loading={loading}
-            disabled={loading}
-          />
-
-          <AuthDivider />
+          {SHOW_GOOGLE_AUTH ? (
+            <>
+              <SocialAuthButton
+                label="Continuar con Google"
+                onPress={onGoogleSignIn}
+                loading={loading}
+                disabled={loading}
+              />
+              <AuthDivider />
+            </>
+          ) : null}
 
           <AuthField
             label="Email"

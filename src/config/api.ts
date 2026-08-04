@@ -15,7 +15,7 @@ export const API_BASE_URL =
 export const SUPABASE_URL =
   process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra?.supabaseUrl ?? '';
 
-export const POLL_INTERVAL_MS = 2500;
+export const POLL_INTERVAL_MS = 800;
 export const MAX_POLL_DURATION_MS = 120_000;
 
 function isPlaceholderUrl(url: string): boolean {

@@ -125,16 +125,15 @@ export function buildRecordStatusPatch(
 
     if (!record.date) {
       data.wasOpenEnded = true;
+      // Soft-day 05:00 local → UTC ISO (Z). Offset forms like -05:00 fail
+      // default Zod datetime validation on the API.
       const now = new Date();
       const day = toIsoDate(now);
-      const offsetMinutes = -now.getTimezoneOffset();
-      const sign = offsetMinutes >= 0 ? '+' : '-';
-      const abs = Math.abs(offsetMinutes);
-      const hours = String(Math.floor(abs / 60)).padStart(2, '0');
-      const minutes = String(abs % 60).padStart(2, '0');
+      const [year, month, dayNum] = day.split('-').map(Number);
+      const softLocal = new Date(year, month - 1, dayNum, 5, 0, 0, 0);
       return {
         data,
-        date: `${day}T05:00:00${sign}${hours}:${minutes}`,
+        date: softLocal.toISOString(),
       };
     }
 

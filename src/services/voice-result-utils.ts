@@ -30,12 +30,6 @@ export function normalizeVoiceJobResult(result: JobResult): VoiceJobResult {
 }
 
 export function buildVoiceAssistantReply(result: VoiceJobResult): string {
-  const structured = result.structuredData;
-  if (structured && typeof structured === 'object' && 'summary' in structured) {
-    const summary = structured.summary?.trim();
-    if (summary) return summary;
-  }
-
   const titles = result.records
     .map((record) => record.title)
     .filter((title): title is string => Boolean(title?.trim()));
@@ -45,8 +39,25 @@ export function buildVoiceAssistantReply(result: VoiceJobResult): string {
   }
 
   if (titles.length > 1) {
-    return `Listo, registré ${titles.length} elementos.`;
+    return `Listo, registré: ${titles.join(', ')}.`;
   }
 
-  return 'Audio procesado correctamente.';
+  const structured = result.structuredData;
+  if (structured && typeof structured === 'object' && 'items' in structured) {
+    const itemTitles = (structured.items ?? [])
+      .map((item) => item.title)
+      .filter((title): title is string => Boolean(title?.trim()));
+    if (itemTitles.length === 1) return `Listo, registré: ${itemTitles[0]}.`;
+    if (itemTitles.length > 1) return `Listo, registré: ${itemTitles.join(', ')}.`;
+  }
+
+  if (structured && typeof structured === 'object' && 'summary' in structured) {
+    const summary = structured.summary?.trim();
+    // Never surface confirmation questions — activities must be saved, not asked.
+    if (summary && !/^\s*¿?\s*quieres\b/i.test(summary) && !/\?\s*$/.test(summary)) {
+      return summary;
+    }
+  }
+
+  return 'No pude crear una actividad con ese audio. Intenta de nuevo.';
 }

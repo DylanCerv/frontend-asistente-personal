@@ -11,6 +11,7 @@ import {
   type ProfileSheetType,
 } from '@/components/profile-settings-sheet';
 import { KivoAlertsSheet } from '@/components/kivo-alerts/kivo-alerts-sheet';
+import { KivoWordmark } from '@/components/kivo-wordmark';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 import { WidgetSetupSheet } from '@/components/widget-setup-sheet';
 import {
@@ -22,7 +23,7 @@ import {
   APP_SURFACE_SOFT,
   APP_TEXT_MUTED,
 } from '@/constants/app-colors';
-import { APP_NAME, APP_VERSION_LABEL } from '@/constants/branding';
+import { APP_VERSION_LABEL } from '@/constants/branding';
 import { useAppFlow } from '@/context/app-flow-context';
 import { useAuth } from '@/context/auth-context';
 import { useDeviceCalendar } from '@/context/device-calendar-context';
@@ -273,21 +274,8 @@ export default function ProfileScreen() {
             gap: 22,
           }}>
           {/* Header */}
-          <View className="flex-row items-center justify-between">
-            <Text className="text-lg font-bold tracking-tight" style={{ color: APP_ACCENT }}>
-              {APP_NAME}
-            </Text>
-            <View
-              className="h-9 w-9 overflow-hidden rounded-full"
-              style={{ borderWidth: 1, borderColor: APP_BORDER, backgroundColor: APP_SURFACE }}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={{ width: 36, height: 36 }} contentFit="cover" />
-              ) : (
-                <View className="h-full w-full items-center justify-center">
-                  <Ionicons name="person" size={16} color={APP_TEXT_MUTED} />
-                </View>
-              )}
-            </View>
+          <View className="flex-row items-center">
+            <KivoWordmark size={22} />
           </View>
 
           {/* Identity */}

@@ -56,8 +56,8 @@ type AssistantContextValue = {
   isRecordsLoading: boolean;
   recordsError: string | null;
   refreshRecords: () => Promise<void>;
-  sendTextMessage: (text: string) => Promise<void>;
-  sendVoiceMessage: (audioUri: string) => Promise<void>;
+  sendTextMessage: (text: string) => Promise<string | void>;
+  sendVoiceMessage: (audioUri: string) => Promise<string | void>;
   toggleTaskComplete: (taskId: string) => void;
   toggleEventComplete: (eventId: string) => void;
   deleteRecord: (recordId: string) => Promise<void>;
@@ -177,6 +177,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     async (response: AssistantChatResponse) => {
       setMessages((prev) => [...prev, createChatMessage('assistant', response.reply)]);
       await refreshRecords();
+      return response.reply;
     },
     [refreshRecords],
   );
@@ -184,6 +185,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const handleAssistantError = useCallback((error: unknown) => {
     const message = getApiErrorMessage(error);
     setMessages((prev) => [...prev, createChatMessage('assistant', message)]);
+    return message;
   }, []);
 
   const runAssistantPipeline = useCallback(
@@ -195,14 +197,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         const requestedName = extractPreferredNameRequest(userText);
         if (requestedName) {
           await setPreferredName(requestedName);
-          setMessages((prev) => [
-            ...prev,
-            createChatMessage(
-              'assistant',
-              `Perfecto, a partir de ahora te llamaré ${requestedName}. Si quieres cambiarlo después, dímelo o ajústalo en Perfil.`,
-            ),
-          ]);
-          return;
+          const reply = `Perfecto, a partir de ahora te llamaré ${requestedName}. Si quieres cambiarlo después, dímelo o ajústalo en Perfil.`;
+          setMessages((prev) => [...prev, createChatMessage('assistant', reply)]);
+          return reply;
         }
 
         if (!isBackendConfigured()) {
@@ -210,7 +207,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             ...prev,
             createChatMessage('assistant', API_NOT_CONFIGURED_MESSAGE),
           ]);
-          return;
+          return API_NOT_CONFIGURED_MESSAGE;
         }
 
         const response = await sendMessageToAssistant({
@@ -219,9 +216,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           userEmail: user?.email,
           context: buildChatContext(),
         });
-        await applyAssistantResponse(response);
+        return await applyAssistantResponse(response);
       } catch (error) {
-        handleAssistantError(error);
+        return handleAssistantError(error);
       } finally {
         setProcessingStep('idle');
       }
@@ -240,7 +237,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || isProcessing) return;
-      await runAssistantPipeline(trimmed);
+      return runAssistantPipeline(trimmed);
     },
     [isProcessing, runAssistantPipeline],
   );
@@ -249,17 +246,16 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     async (rawResult: Parameters<typeof normalizeVoiceJobResult>[0], fallbackText?: string) => {
       const result = normalizeVoiceJobResult(rawResult);
       const transcription = result.transcription?.trim() || fallbackText?.trim();
+      const reply = buildVoiceAssistantReply(result);
 
       if (transcription) {
         setMessages((prev) => [...prev, createChatMessage('user', transcription)]);
       }
 
-      setMessages((prev) => [
-        ...prev,
-        createChatMessage('assistant', buildVoiceAssistantReply(result)),
-      ]);
+      setMessages((prev) => [...prev, createChatMessage('assistant', reply)]);
 
       await refreshRecords();
+      return reply;
     },
     [refreshRecords],
   );
@@ -276,7 +272,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             ...prev,
             createChatMessage('assistant', API_NOT_CONFIGURED_MESSAGE),
           ]);
-          return;
+          throw new Error(API_NOT_CONFIGURED_MESSAGE);
         }
 
         const rawResult = await processVoiceRecording(audioUri, {
@@ -289,9 +285,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        await applyVoiceJobResult(rawResult);
+        return await applyVoiceJobResult(rawResult);
       } catch (error) {
         handleAssistantError(error);
+        throw error;
       } finally {
         setProcessingStep('idle');
       }
@@ -323,9 +320,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         ),
       );
 
-      void patchUserRecord(recordId, patch).catch(async () => {
-        await refreshRecords();
-      });
+      void patchUserRecord(recordId, patch)
+        .then((updated) => {
+          setApiRecords((prev) =>
+            prev.map((item) => (item.id === recordId ? updated : item)),
+          );
+        })
+        .catch(async () => {
+          await refreshRecords();
+        });
     },
     [apiRecords, refreshRecords],
   );

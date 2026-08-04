@@ -4,7 +4,7 @@ import type { MemoryRecord } from '@/types/record';
 import { addDays, formatShortDate, todayIso } from '@/utils/date-utils';
 import {
   getDayProgressPercent,
-  getFocusTask,
+  getFocusChecklistTasks,
   getFocusTaskDueLabel,
 } from '@/utils/focus-utils';
 import { memoryRecordToTask } from '@/utils/record-mappers';
@@ -106,7 +106,7 @@ export function buildTodayWidgetPayload(records: MemoryRecord[]): WidgetTodayPay
 }
 
 export function buildPriorityWidgetPayload(tasks: TaskItem[]): WidgetPriorityPayload {
-  const focusTask = getFocusTask(tasks);
+  const focusTask = getFocusChecklistTasks(tasks, { limit: 1 })[0] ?? null;
   const progressPercent = getDayProgressPercent(tasks);
 
   if (!focusTask) {

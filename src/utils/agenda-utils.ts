@@ -29,16 +29,26 @@ export function filterTasksByDates(tasks: TaskItem[], selectedDates: string[]): 
   });
 }
 
-/** Pending tasks that are overdue or high-priority due today. */
+/** Pending tasks whose clock time is within the next hour (not all high-priority today). */
 export function isExpiringSoon(task: TaskItem, now = Date.now()): boolean {
   if (task.status === 'completed') return false;
   if (!task.scheduledAt) return false;
   if (isScheduledTimePast({ dueAtIso: task.dueAtIso, scheduledAt: task.scheduledAt }, now)) {
     return false;
   }
+
   const today = todayIso();
-  if (task.scheduledAt < today) return true;
-  return task.scheduledAt === today && task.priority === 'high';
+  // Past calendar days stay under "Atrasada", not this badge.
+  if (task.scheduledAt < today) return false;
+  if (task.scheduledAt !== today) return false;
+
+  if (!task.dueAtIso || !hasExplicitTimeFromIso(task.dueAtIso)) return false;
+
+  const dueMs = new Date(task.dueAtIso).getTime();
+  if (Number.isNaN(dueMs)) return false;
+
+  const minutesUntil = (dueMs - now) / 60_000;
+  return minutesUntil >= 0 && minutesUntil <= 60;
 }
 
 export function getTaskTimeLabel(task: TaskItem): string | null {
@@ -49,7 +59,7 @@ export function getTaskTimeLabel(task: TaskItem): string | null {
   return label || null;
 }
 
-function hasExplicitTimeFromIso(iso: string): boolean {
+export function hasExplicitTimeFromIso(iso: string): boolean {
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso.trim())) return false;
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return false;

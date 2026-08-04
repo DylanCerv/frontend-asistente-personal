@@ -5,9 +5,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 
 import {
   AgendaCalendar,
-  CalendarBulkActions,
   useAgendaCalendarState,
-  type VisibleMonth,
 } from '@/components/agenda-calendar';
 import { ScreenAccentBar } from '@/components/screen-accent-bar';
 import { ScreenHeader } from '@/components/screen-header';
@@ -60,10 +58,6 @@ export default function ReportScreen() {
   const { tasks, events, records, isRecordsLoading, refreshRecords } = useAssistant();
   const { selectedDates, onChange } = useAgendaCalendarState(todayIso());
   const accent = useScreenAccent('report');
-  const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(() => {
-    const today = new Date();
-    return { year: today.getFullYear(), month: today.getMonth() };
-  });
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -156,16 +150,7 @@ export default function ReportScreen() {
           selectedDates={selectedDates}
           markedDates={markedDates}
           onChange={onChange}
-          onVisibleMonthChange={setVisibleMonth}
           accent={accent}
-          footerContent={
-            <CalendarBulkActions
-              selectedDates={selectedDates}
-              visibleMonth={visibleMonth}
-              onChange={onChange}
-              accent={accent}
-            />
-          }
         />
 
         <Pressable

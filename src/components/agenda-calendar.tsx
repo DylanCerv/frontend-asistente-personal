@@ -7,6 +7,7 @@ import {
   enumerateDates,
   formatSelectedDatesLabel,
   getCalendarDays,
+  getPresetRange,
   mergeSelectedDates,
   MONTH_LABELS,
   normalizeRange,
@@ -46,6 +47,8 @@ type AgendaCalendarProps = {
   onVisibleMonthChange?: (visibleMonth: VisibleMonth) => void;
   footerContent?: ReactNode;
   accent?: ScreenAccent;
+  /** Quick week/month chips under the selection label. Default true. */
+  showQuickActions?: boolean;
 };
 
 export function AgendaCalendar({
@@ -55,6 +58,7 @@ export function AgendaCalendar({
   onVisibleMonthChange,
   footerContent,
   accent = DEFAULT_ACCENT,
+  showQuickActions = true,
 }: AgendaCalendarProps) {
   const [rangeAnchor, setRangeAnchor] = useState<string | null>(null);
   const [visibleMonth, setVisibleMonth] = useState(() => {
@@ -71,6 +75,14 @@ export function AgendaCalendar({
   );
   const markedSet = useMemo(() => new Set(markedDates), [markedDates]);
   const monthLabel = `${MONTH_LABELS[visibleMonth.month]} ${visibleMonth.year}`;
+
+  const weekDates = useMemo(() => enumerateDates(getPresetRange('week')), []);
+  const monthDates = useMemo(() => getMonthDates(visibleMonth), [visibleMonth]);
+
+  const allWeekSelected =
+    weekDates.length > 0 && weekDates.every((day) => selectedSet.has(day));
+  const allMonthSelected =
+    monthDates.length > 0 && monthDates.every((day) => selectedSet.has(day));
 
   useEffect(() => {
     onVisibleMonthChange?.(visibleMonth);
@@ -115,6 +127,18 @@ export function AgendaCalendar({
     return parseIsoDate(day).getDate();
   }
 
+  function selectThisWeek() {
+    setRangeAnchor(null);
+    onChange([...weekDates].sort());
+    const anchor = parseIsoDate(todayIso());
+    setVisibleMonth({ year: anchor.getFullYear(), month: anchor.getMonth() });
+  }
+
+  function selectThisMonth() {
+    setRangeAnchor(null);
+    onChange([...monthDates].sort());
+  }
+
   return (
     <View
       className="gap-4 rounded-[24px] border bg-surface p-4 dark:bg-surface-dark"
@@ -145,51 +169,72 @@ export function AgendaCalendar({
 
       {rangeAnchor ? (
         <View
-          className="flex-row items-center gap-2.5 rounded-2xl border px-3.5 py-3"
-          style={{ borderColor: accent.border, backgroundColor: accent.soft }}>
+          className="flex-row items-center gap-3 rounded-2xl border-2 px-3.5 py-3.5"
+          style={{ borderColor: accent.main, backgroundColor: accent.soft }}>
           <View
-            className="h-8 w-8 items-center justify-center rounded-full"
+            className="h-10 w-10 items-center justify-center rounded-full"
             style={{ backgroundColor: accent.main }}>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={18} color={onAccentTextColor(accent.main)} />
           </View>
-          <Text className="flex-1 text-sm font-semibold" style={{ color: accent.main }}>
-            Toca otro día para completar el rango
-          </Text>
+          <View className="flex-1 gap-0.5">
+            <Text className="text-[15px] font-bold" style={{ color: accent.main }}>
+              Elige el final del rango
+            </Text>
+            <Text className="text-[13px] leading-5 text-foreground dark:text-foreground-dark">
+              Toca otro día para seleccionar desde el día marcado hasta ese.
+            </Text>
+          </View>
         </View>
       ) : (
         <View
-          className="gap-2 rounded-2xl border px-3.5 py-3"
-          style={{ borderColor: accent.border, backgroundColor: accent.soft }}>
+          className="gap-3 rounded-2xl border-2 px-3.5 py-3.5"
+          style={{ borderColor: accent.main, backgroundColor: accent.soft }}>
           <View className="flex-row items-center gap-2">
-            <Ionicons name="information-circle" size={18} color={accent.main} />
-            <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
-              Cómo seleccionar fechas
+            <View
+              className="h-8 w-8 items-center justify-center rounded-full"
+              style={{ backgroundColor: accent.main }}>
+              <Ionicons name="help" size={16} color={onAccentTextColor(accent.main)} />
+            </View>
+            <Text className="flex-1 text-[15px] font-bold text-foreground dark:text-foreground-dark">
+              Cómo usar el calendario
             </Text>
           </View>
-          <View className="gap-1.5">
-            <View className="flex-row items-center gap-2">
+
+          <View className="gap-2.5">
+            <View
+              className="flex-row items-center gap-3 rounded-xl px-3 py-2.5"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
               <View
-                className="h-6 w-6 items-center justify-center rounded-lg"
-                style={{ backgroundColor: accent.soft }}>
-                <Ionicons name="finger-print-outline" size={14} color={accent.main} />
+                className="h-9 w-9 items-center justify-center rounded-xl"
+                style={{ backgroundColor: accent.main }}>
+                <Ionicons name="hand-left-outline" size={18} color={onAccentTextColor(accent.main)} />
               </View>
-              <Text className="flex-1 text-xs leading-5 text-subtle dark:text-subtle-dark">
-                <Text className="font-semibold text-foreground dark:text-foreground-dark">Toque:</Text>{' '}
-                elige o quita días sueltos
-              </Text>
+              <View className="flex-1 gap-0.5">
+                <Text className="text-[14px] font-bold text-foreground dark:text-foreground-dark">
+                  Toque corto
+                </Text>
+                <Text className="text-[13px] leading-5 text-white">
+                  Elige o quita un día suelto
+                </Text>
+              </View>
             </View>
-            <View className="flex-row items-center gap-2">
+
+            <View
+              className="flex-row items-center gap-3 rounded-xl px-3 py-2.5"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
               <View
-                className="h-6 w-6 items-center justify-center rounded-lg"
-                style={{ backgroundColor: accent.soft }}>
-                <Ionicons name="hand-left-outline" size={14} color={accent.main} />
+                className="h-9 w-9 items-center justify-center rounded-xl"
+                style={{ backgroundColor: accent.main }}>
+                <Ionicons name="timer-outline" size={18} color={onAccentTextColor(accent.main)} />
               </View>
-              <Text className="flex-1 text-xs leading-5 text-subtle dark:text-subtle-dark">
-                <Text className="font-semibold text-foreground dark:text-foreground-dark">
-                  Mantén pulsado:
-                </Text>{' '}
-                luego toca otro día para un rango
-              </Text>
+              <View className="flex-1 gap-0.5">
+                <Text className="text-[14px] font-bold text-foreground dark:text-foreground-dark">
+                  Mantén pulsado
+                </Text>
+                <Text className="text-[13px] leading-5 text-white">
+                  Luego toca otro día para marcar un rango
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -317,6 +362,44 @@ export function AgendaCalendar({
           </Pressable>
         ) : null}
       </View>
+
+      {showQuickActions ? (
+        <View className="gap-2">
+          <Text className="text-[11px] font-semibold uppercase tracking-[1.2px] text-subtle dark:text-subtle-dark">
+            Selección rápida
+          </Text>
+          <View className="flex-row gap-2">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Seleccionar esta semana entera"
+              onPress={selectThisWeek}
+              className="min-w-0 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border py-3 active:opacity-85"
+              style={{
+                borderColor: allWeekSelected ? accent.main : accent.border,
+                backgroundColor: allWeekSelected ? accent.soft : 'transparent',
+              }}>
+              <Ionicons name="calendar-number-outline" size={16} color={accent.main} />
+              <Text className="text-[13px] font-semibold" style={{ color: accent.main }}>
+                Esta semana
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Seleccionar este mes"
+              onPress={selectThisMonth}
+              className="min-w-0 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border py-3 active:opacity-85"
+              style={{
+                borderColor: allMonthSelected ? accent.main : accent.border,
+                backgroundColor: allMonthSelected ? accent.soft : 'transparent',
+              }}>
+              <Ionicons name="calendar-outline" size={16} color={accent.main} />
+              <Text className="text-[13px] font-semibold" style={{ color: accent.main }}>
+                Este mes
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -384,23 +467,19 @@ export function CalendarBulkActions({
   accent?: ScreenAccent;
 }) {
   const selectedSet = useMemo(() => new Set(selectedDates), [selectedDates]);
+  const weekDates = useMemo(() => enumerateDates(getPresetRange('week')), []);
   const monthDates = useMemo(() => getMonthDates(visibleMonth), [visibleMonth]);
-  const monthSet = useMemo(() => new Set(monthDates), [monthDates]);
+  const allWeekSelected =
+    weekDates.length > 0 && weekDates.every((day) => selectedSet.has(day));
   const allMonthSelected =
     monthDates.length > 0 && monthDates.every((day) => selectedSet.has(day));
-  const monthLabel = `${MONTH_LABELS[visibleMonth.month].slice(0, 3)}`;
 
-  function selectTodayOnly() {
-    onChange([todayIso()]);
+  function selectThisWeek() {
+    onChange([...weekDates].sort());
   }
 
-  function toggleVisibleMonth() {
-    if (allMonthSelected) {
-      const remaining = selectedDates.filter((day) => !monthSet.has(day));
-      onChange(remaining.length > 0 ? remaining : [todayIso()]);
-      return;
-    }
-    onChange(mergeSelectedDates(selectedDates, monthDates));
+  function selectThisMonth() {
+    onChange([...monthDates].sort());
   }
 
   return (
@@ -410,16 +489,16 @@ export function CalendarBulkActions({
       </Text>
       <View className="flex-row gap-2">
         <BulkActionButton
-          label="Solo hoy"
-          icon="today-outline"
-          onPress={selectTodayOnly}
-          active={selectedDates.length === 1 && selectedDates[0] === todayIso()}
+          label="Esta semana"
+          icon="calendar-number-outline"
+          onPress={selectThisWeek}
+          active={allWeekSelected}
           accent={accent}
         />
         <BulkActionButton
-          label={allMonthSelected ? `Quitar ${monthLabel}` : `Mes ${monthLabel}`}
-          icon={allMonthSelected ? 'remove-circle-outline' : 'calendar-outline'}
-          onPress={toggleVisibleMonth}
+          label="Este mes"
+          icon="calendar-outline"
+          onPress={selectThisMonth}
           active={allMonthSelected}
           accent={accent}
         />
