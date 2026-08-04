@@ -1,56 +1,47 @@
-# Welcome to your Expo app 👋
+# Kivo
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> **Habla. Nosotros organizamos.**
 
-## Get started
+Asistente personal con IA para iOS y Android (Expo). Habla o escribe; el backend organiza tareas, eventos y recordatorios en Supabase.
 
-1. Install dependencies
+## Documentación
 
-   ```bash
-   npm install
-   ```
+**[DOCUMENTATION.md](./DOCUMENTATION.md)** — arquitectura, auth, voz, `.env`, Expo Go vs development build y seguridad.
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Inicio rápido
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env
+# EXPO_PUBLIC_API_BASE_URL=http://<IP-de-tu-PC>:3000/api
+# EXPO_PUBLIC_SUPABASE_URL=https://….supabase.co
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+El backend debe estar corriendo (`backend-asistente-personal`: `npm run dev:all`) con `DEV_MOCK_AUTH=false` y las keys de Supabase/OpenAI.
 
-### Other setup steps
+### Variables principales
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```env
+EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:3000/api
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=….apps.googleusercontent.com
+```
 
-## Learn more
+Chat y voz usan el mismo backend (`/api/chat`, `/api/audio`). **No** pongas la OpenAI key en el frontend.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Stack
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Expo 54 · React Native · expo-router 6
+- NativeWind 4 · TypeScript
+- Backend Express + Supabase + OpenAI (proyecto hermano)
 
-## Join the community
+## Scripts
 
-Join our community of developers creating universal apps.
+| Comando | Descripción |
+|---------|-------------|
+| `npm start` | Expo (Expo Go por defecto) |
+| `npm run android` / `ios` | Abrir en emulador / dispositivo |
+| `npm run lint` | ESLint |
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Para notificaciones y widgets: development build o APK con `EXPO_PUBLIC_NATIVE_BUILD=1` (ver DOCUMENTATION.md).

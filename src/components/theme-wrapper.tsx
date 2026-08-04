@@ -1,18 +1,23 @@
 import type { ReactNode } from 'react';
-import { View, type ViewProps } from 'react-native';
+import { View, type ViewProps, StyleSheet } from 'react-native';
 
-import { useThemePreference } from '@/context/theme-preference-context';
+import { APP_BACKGROUND } from '@/constants/app-colors';
 
 type ThemeWrapperProps = ViewProps & {
   children: ReactNode;
 };
 
-export function ThemeWrapper({ children, className, ...props }: ThemeWrapperProps) {
-  const { mode } = useThemePreference();
-
+export function ThemeWrapper({ children, style, ...props }: ThemeWrapperProps) {
   return (
-    <View className={`flex-1 ${mode === 'dark' ? 'dark' : ''} ${className ?? ''}`} {...props}>
+    <View style={[styles.root, style]} {...props}>
       {children}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: APP_BACKGROUND,
+  },
+});
