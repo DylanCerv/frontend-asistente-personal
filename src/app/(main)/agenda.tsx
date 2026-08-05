@@ -52,6 +52,7 @@ import {
   filterTasksByDates,
   getTaskSubtitle,
   getTaskTimeLabel,
+  hasExplicitTimeFromIso,
   isEventTimePast,
   isExpiringSoon,
   isOpenPendingTask,
@@ -1035,8 +1036,16 @@ function EditTaskModal({
   const [taskDate, setTaskDate] = useState(
     task.dueAtIso ? new Date(task.dueAtIso) : new Date(),
   );
+  const [taskTime, setTaskTime] = useState(
+    task.dueAtIso ? new Date(task.dueAtIso) : new Date(),
+  );
   const [changeNote, setChangeNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const hasExplicitTime = Boolean(
+    (task.time && task.time !== 'Sin hora') ||
+      (task.dueAtIso && hasExplicitTimeFromIso(task.dueAtIso)),
+  );
 
   // Reset when task changes
   useEffect(() => {
@@ -1044,7 +1053,9 @@ function EditTaskModal({
     setDescription(task.description ?? '');
     setPriority((task.priority as Priority) ?? 'medium');
     setCategory(task.category ?? 'General');
-    setTaskDate(task.dueAtIso ? new Date(task.dueAtIso) : new Date());
+    const base = task.dueAtIso ? new Date(task.dueAtIso) : new Date();
+    setTaskDate(base);
+    setTaskTime(base);
     setChangeNote('');
   }, [task]);
 
@@ -1052,11 +1063,22 @@ function EditTaskModal({
     if (!title.trim()) return;
     setIsSaving(true);
     try {
+      // Only merge clock time when the task already had an explicit time.
+      // Undated / day-only tasks keep the previous date-only save path.
+      let nextDate: string;
+      if (hasExplicitTime) {
+        const combined = new Date(taskDate);
+        combined.setHours(taskTime.getHours(), taskTime.getMinutes(), 0, 0);
+        nextDate = combined.toISOString();
+      } else {
+        nextDate = taskDate.toISOString();
+      }
+
       await onPatch(task.id, {
         title: title.trim(),
         description: description.trim() || null,
         priority,
-        date: taskDate.toISOString(),
+        date: nextDate,
         data: { category },
         note: changeNote.trim() || null,
       });
@@ -1115,6 +1137,15 @@ function EditTaskModal({
             mode="date"
             onChange={setTaskDate}
           />
+
+          {hasExplicitTime ? (
+            <DatePickerField
+              label="Hora de la tarea"
+              date={taskTime}
+              mode="time"
+              onChange={setTaskTime}
+            />
+          ) : null}
 
           <Input
             label="Nota del cambio (opcional)"

@@ -7,7 +7,6 @@ import {
 } from '@/services/focus/focus-native';
 import {
   clearPreviousInterruptionFilter,
-  loadPreviousInterruptionFilter,
   savePreviousInterruptionFilter,
 } from '@/services/focus/focus-session-store';
 
@@ -21,15 +20,17 @@ export async function enableFocusDnd(): Promise<boolean> {
   return setInterruptionFilter(FocusInterruptionFilter.PRIORITY);
 }
 
+/**
+ * Turn off Do Not Disturb when Focus ends.
+ * Does not revoke the DND *permission* — only exits the quiet mode Focus enabled.
+ */
 export async function restoreFocusDnd(): Promise<void> {
   if (!hasNotificationPolicyAccess()) {
     await clearPreviousInterruptionFilter();
     return;
   }
 
-  const previous = await loadPreviousInterruptionFilter();
-  const filter = previous ?? FocusInterruptionFilter.ALL;
-  setInterruptionFilter(filter);
+  setInterruptionFilter(FocusInterruptionFilter.ALL);
   await clearPreviousInterruptionFilter();
 }
 

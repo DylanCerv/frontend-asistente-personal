@@ -51,6 +51,8 @@ export type WidgetTodayItem = {
   time?: string;
   kind: WidgetTodayItemKind;
   priority?: 'high' | 'normal';
+  /** Device calendar imports vs records created inside Kivo. */
+  source?: 'kivo' | 'device';
 };
 
 export type WidgetTodayPayload = {
@@ -78,6 +80,8 @@ export type WidgetPriorityPayload = {
   /** Flexible / undated tasks — ListWidget scrolls when there are several. */
   items?: WidgetPriorityItem[];
   progressPercent: number;
+  /** Completed/total for today, e.g. "2/5". */
+  progressLabel: string;
   emptyMessage?: string;
   deepLink: string;
 };

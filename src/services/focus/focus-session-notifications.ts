@@ -102,9 +102,9 @@ export async function displayFocusSessionNotification(
 
   await notifee.default.displayNotification({
     id: FOCUS_SESSION_NOTIFICATION_ID,
-    title: 'Focus Session',
+    title: 'Sesión Focus',
     body: `${session.title} · ${timerText} · ${progress}%`,
-    subtitle: 'ONGOING',
+    subtitle: 'EN CURSO',
     data: {
       kind: 'focus-session',
       taskId: session.taskId,

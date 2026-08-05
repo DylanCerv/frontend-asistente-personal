@@ -91,6 +91,7 @@ function mapRecordToWidgetItem(record: MemoryRecord): WidgetTodayItem {
     time,
     kind: mapRecordKind(record),
     priority: record.priority === 'high' ? 'high' : 'normal',
+    source: 'kivo',
   };
 }
 
@@ -103,6 +104,7 @@ function mapCalendarEventToWidgetItem(event: CalendarEvent): WidgetTodayItem {
     time,
     kind: 'meeting',
     priority: 'normal',
+    source: event.source === 'device' ? 'device' : 'kivo',
   };
 }
 
@@ -177,7 +179,9 @@ export function buildPriorityWidgetPayload(
   deviceEvents: CalendarEvent[] = [],
 ): WidgetPriorityPayload {
   const checklist = getFocusChecklistTasks(tasks, { limit: PRIORITY_WIDGET_MAX_ITEMS });
-  const progressPercent = buildFocusDayStats(tasks, deviceEvents).progressPercent;
+  const stats = buildFocusDayStats(tasks, deviceEvents);
+  const progressPercent = stats.progressPercent;
+  const progressLabel = `${stats.completedToday}/${stats.totalToday}`;
 
   const items: WidgetPriorityItem[] = checklist.map((task) => ({
     id: task.id,
@@ -192,6 +196,7 @@ export function buildPriorityWidgetPayload(
       dueLabel: 'Sin tareas pendientes',
       items: [],
       progressPercent,
+      progressLabel,
       emptyMessage: 'Habla para organizar tu día',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
     };
@@ -203,6 +208,7 @@ export function buildPriorityWidgetPayload(
     dueLabel: items[0].dueLabel,
     items,
     progressPercent,
+    progressLabel,
     deepLink: WIDGET_DEEP_LINK_FOCUS,
   };
 }
@@ -329,6 +335,7 @@ export function buildNeedsSyncHomeWidgetsPayload(): WidgetHomePayload {
       dueLabel: 'Abre Kivo para sincronizar',
       items: [],
       progressPercent: 0,
+      progressLabel: '0/0',
       emptyMessage: 'Abre Kivo para sincronizar',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
     },
@@ -361,6 +368,7 @@ export function buildDisabledHomeWidgetsPayload(): WidgetHomePayload {
       dueLabel: 'Activa widgets en Perfil',
       items: [],
       progressPercent: 0,
+      progressLabel: '0/0',
       emptyMessage: 'Activa widgets en Perfil',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
     },
@@ -393,6 +401,7 @@ export function buildSignedOutHomeWidgetsPayload(): WidgetHomePayload {
       dueLabel: 'Inicia sesión',
       items: [],
       progressPercent: 0,
+      progressLabel: '0/0',
       emptyMessage: 'Inicia sesión para ver tu prioridad',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
     },

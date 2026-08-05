@@ -99,21 +99,43 @@ export async function refreshAndroidWidgets(payload: WidgetHomePayload): Promise
     const { KivoTodayWidgetView } = await import('./kivo-today-widget-view');
     const { KivoPriorityWidgetView } = await import('./kivo-priority-widget-view');
     const { KivoCaptureWidgetView } = await import('./kivo-capture-widget-view');
+    const {
+      clampPriorityPageIndex,
+      readPriorityPageIndex,
+    } = await import('./widget-priority-page');
 
     await Promise.all(
       ANDROID_WIDGET_NAMES.map(async (widgetName) => {
         await requestWidgetUpdate({
           widgetName,
-          renderWidget: () => {
+          renderWidget: async (widgetInfo) => {
             switch (widgetName) {
-              case 'KivoPriority':
+              case 'KivoPriority': {
+                const items = payload.priority.items ?? [];
+                const count =
+                  items.length > 0
+                    ? items.length
+                    : payload.priority.title &&
+                        payload.priority.title !== 'Nada urgente' &&
+                        payload.priority.title !== 'Tu prioridad'
+                      ? 1
+                      : 0;
+                const pageIndex = clampPriorityPageIndex(
+                  await readPriorityPageIndex(widgetInfo.widgetId),
+                  count,
+                );
                 return React.createElement(KivoPriorityWidgetView, {
                   payload: payload.priority,
                   enabled: payload.enabled,
+                  height: widgetInfo.height,
+                  pageIndex,
                 });
+              }
               case 'KivoCapture':
                 return React.createElement(KivoCaptureWidgetView, {
                   payload: payload.capture,
+                  height: widgetInfo.height,
+                  width: widgetInfo.width,
                 });
               case 'KivoToday':
               default:
@@ -178,6 +200,7 @@ export async function syncHomeWidget(payload: WidgetTodayPayload): Promise<void>
           dueLabel: payload.emptyMessage ?? '',
           items: [],
           progressPercent: 0,
+          progressLabel: '0/0',
           deepLink: 'kivo://',
         },
         capture: {

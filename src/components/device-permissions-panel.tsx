@@ -54,6 +54,8 @@ type PermissionRowState = {
   reason?: PermissionResult['reason'];
   actionLabel?: string;
   onAction?: () => void | Promise<void>;
+  revokeLabel?: string;
+  onRevoke?: () => void | Promise<void>;
   androidOnly?: boolean;
 };
 
@@ -63,9 +65,29 @@ const STATUS_COLOR: Record<PermissionStatus, string> = {
   unavailable: APP_TEXT_MUTED,
 };
 
+function confirmRevoke(label: string, onConfirm: () => void | Promise<void>) {
+  showAppAlert(
+    'Quitar permiso',
+    `Para desactivar “${label}”, Android abre los ajustes del sistema. Desactiva el interruptor y vuelve a Kivo.`,
+    [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Abrir ajustes',
+        onPress: () => {
+          void onConfirm();
+        },
+      },
+    ],
+  );
+}
+
 export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsPanelProps) {
-  const { homeWidgetEnabled, setDeviceCalendarSyncEnabled, setPushNotifications } =
-    useUserPreferences();
+  const {
+    homeWidgetEnabled,
+    setDeviceCalendarSyncEnabled,
+    setPushNotifications,
+    setHomeWidgetEnabled,
+  } = useUserPreferences();
   const [rows, setRows] = useState<PermissionRowState[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onOpenWidgetSetupRef = useRef(onOpenWidgetSetup);
@@ -125,6 +147,17 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
                   await refreshRef.current();
                 }
               : undefined,
+          revokeLabel: notifications.status === 'granted' ? 'Quitar' : undefined,
+          onRevoke:
+            notifications.status === 'granted'
+              ? async () => {
+                  confirmRevoke('Notificaciones del sistema', async () => {
+                    await setPushNotifications(false);
+                    await openAppNotificationSettings();
+                    await refreshRef.current();
+                  });
+                }
+              : undefined,
         },
         {
           id: 'exact-alarms',
@@ -139,6 +172,16 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
             exactAlarm.status === 'denied'
               ? async () => {
                   await openFullScreenIntentSettings();
+                }
+              : undefined,
+          revokeLabel: exactAlarm.status === 'granted' ? 'Quitar' : undefined,
+          onRevoke:
+            exactAlarm.status === 'granted'
+              ? async () => {
+                  confirmRevoke('Alarmas exactas', async () => {
+                    await openFullScreenIntentSettings();
+                    await refreshRef.current();
+                  });
                 }
               : undefined,
         },
@@ -167,6 +210,17 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
                   await refreshRef.current();
                 }
               : undefined,
+          revokeLabel: calendar.status === 'granted' ? 'Quitar' : undefined,
+          onRevoke:
+            calendar.status === 'granted'
+              ? async () => {
+                  confirmRevoke('Calendario del dispositivo', async () => {
+                    await setDeviceCalendarSyncEnabled(false);
+                    await openAppNotificationSettings();
+                    await refreshRef.current();
+                  });
+                }
+              : undefined,
         },
       ];
 
@@ -176,7 +230,8 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
             id: 'dnd',
             icon: 'moon-outline',
             label: 'No molestar (Focus)',
-            description: 'Silenciar interrupciones en modo Focus',
+            description:
+              'Silenciar interrupciones en modo Focus. En ajustes busca “Kivo” y activa el interruptor.',
             status: focusNative ? dndStatus : 'unavailable',
             reason: focusNative ? undefined : notifications.reason,
             actionLabel: dndStatus === 'denied' ? 'Abrir ajustes' : undefined,
@@ -185,6 +240,16 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
                 ? async () => {
                     await openNotificationPolicySettings();
                     await refreshRef.current();
+                  }
+                : undefined,
+            revokeLabel: dndStatus === 'granted' ? 'Quitar' : undefined,
+            onRevoke:
+              dndStatus === 'granted'
+                ? async () => {
+                    confirmRevoke('No molestar (Focus)', async () => {
+                      await openNotificationPolicySettings();
+                      await refreshRef.current();
+                    });
                   }
                 : undefined,
           },
@@ -203,6 +268,16 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
                     await refreshRef.current();
                   }
                 : undefined,
+            revokeLabel: overlayStatus === 'granted' ? 'Quitar' : undefined,
+            onRevoke:
+              overlayStatus === 'granted'
+                ? async () => {
+                    confirmRevoke('Mostrar sobre otras apps', async () => {
+                      await openOverlaySettings();
+                      await refreshRef.current();
+                    });
+                  }
+                : undefined,
           },
         );
       }
@@ -216,19 +291,40 @@ export function DevicePermissionsPanel({ onOpenWidgetSetup }: DevicePermissionsP
           : permissionUnavailableMessage(notifications.reason ?? 'expo_go'),
         status: widgetsStatus,
         reason: widgetsAvailable ? undefined : notifications.reason,
-        actionLabel: widgetsAvailable ? 'Cómo añadir' : undefined,
+        actionLabel: widgetsAvailable
+          ? widgetsStatus === 'granted'
+            ? 'Cómo añadir'
+            : 'Activar'
+          : undefined,
         onAction: widgetsAvailable
-          ? () => {
+          ? async () => {
+              if (widgetsStatus !== 'granted') {
+                await setHomeWidgetEnabled(true);
+              }
               onOpenWidgetSetupRef.current?.();
+              await refreshRef.current();
             }
           : undefined,
+        revokeLabel: widgetsStatus === 'granted' ? 'Quitar' : undefined,
+        onRevoke:
+          widgetsStatus === 'granted'
+            ? async () => {
+                await setHomeWidgetEnabled(false);
+                await refreshRef.current();
+              }
+            : undefined,
       });
 
       setRows(next.filter((row) => !(row.androidOnly && Platform.OS !== 'android')));
     } finally {
       setIsRefreshing(false);
     }
-  }, [homeWidgetEnabled, setDeviceCalendarSyncEnabled, setPushNotifications]);
+  }, [
+    homeWidgetEnabled,
+    setDeviceCalendarSyncEnabled,
+    setHomeWidgetEnabled,
+    setPushNotifications,
+  ]);
 
   useEffect(() => {
     refreshRef.current = refresh;
@@ -302,6 +398,9 @@ function PermissionStatusRow({
   row: PermissionRowState;
   onExplainUnavailable: () => void;
 }) {
+  const hasPrimary = Boolean(row.actionLabel && row.onAction);
+  const hasRevoke = Boolean(row.revokeLabel && row.onRevoke);
+
   return (
     <View
       className="flex-row items-center gap-3 rounded-2xl border px-4 py-3.5"
@@ -321,16 +420,31 @@ function PermissionStatusRow({
           {permissionStatusLabel(row.status)}
         </Text>
       </View>
-      {row.actionLabel && row.onAction ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void row.onAction?.()}
-          className="rounded-xl px-3 py-2 active:opacity-80"
-          style={{ backgroundColor: 'rgba(45, 212, 191, 0.15)' }}>
-          <Text className="text-xs font-semibold" style={{ color: APP_ACCENT }}>
-            {row.actionLabel}
-          </Text>
-        </Pressable>
+      {hasPrimary || hasRevoke ? (
+        <View className="items-end gap-1.5">
+          {hasPrimary ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void row.onAction?.()}
+              className="rounded-xl px-3 py-2 active:opacity-80"
+              style={{ backgroundColor: 'rgba(45, 212, 191, 0.15)' }}>
+              <Text className="text-xs font-semibold" style={{ color: APP_ACCENT }}>
+                {row.actionLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+          {hasRevoke ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void row.onRevoke?.()}
+              className="rounded-xl px-3 py-2 active:opacity-80"
+              style={{ backgroundColor: 'rgba(255, 122, 92, 0.12)' }}>
+              <Text className="text-xs font-semibold" style={{ color: '#FF7A5C' }}>
+                {row.revokeLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : row.status === 'unavailable' ? (
         <Pressable
           accessibilityRole="button"

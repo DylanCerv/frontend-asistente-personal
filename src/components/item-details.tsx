@@ -5,7 +5,9 @@ import { DetailRow } from '@/components/expandable-item-card';
 import { getCategoryIcon } from '@/constants/categories';
 import { PRIORITY_LABELS } from '@/constants/labels';
 import type { CalendarEvent, TaskItem } from '@/types/assistant';
+import { hasExplicitTimeFromIso } from '@/utils/agenda-utils';
 import { formatLongDate } from '@/utils/date-utils';
+import { formatTimeLabel } from '@/utils/record-mappers';
 
 function CategoryDetailRow({ category }: { category: string }) {
   return (
@@ -23,6 +25,13 @@ function CategoryDetailRow({ category }: { category: string }) {
 }
 
 export function TaskDetailsContent({ task }: { task: TaskItem }) {
+  const timeLabel =
+    task.time && task.time !== 'Sin hora'
+      ? task.time
+      : task.dueAtIso && hasExplicitTimeFromIso(task.dueAtIso)
+        ? formatTimeLabel(task.dueAtIso)
+        : null;
+
   return (
     <View className="gap-3">
       {task.description ? (
@@ -36,6 +45,9 @@ export function TaskDetailsContent({ task }: { task: TaskItem }) {
         }
         icon="calendar-outline"
       />
+      {timeLabel ? (
+        <DetailRow label="Hora" value={timeLabel} icon="time-outline" />
+      ) : null}
       {task.completedAt ? (
         <DetailRow
           label="Completada"

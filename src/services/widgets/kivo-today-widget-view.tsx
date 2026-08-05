@@ -5,6 +5,7 @@ import { FlexWidget, ListWidget, TextWidget } from 'react-native-android-widget'
 
 import {
   WIDGET_ACCENT,
+  WIDGET_CALENDAR,
   WIDGET_SURFACE,
   WIDGET_TEXT,
   WIDGET_TEXT_MUTED,
@@ -33,6 +34,12 @@ function fallbackPayload(): WidgetTodayPayload {
 function formatItemLine(item: WidgetTodayPayload['items'][number]): string {
   const prefix = item.time ? `${item.time} · ` : '';
   return `${prefix}${item.title}`;
+}
+
+function itemColor(item: WidgetTodayPayload['items'][number]): string {
+  if (item.source === 'device') return WIDGET_CALENDAR;
+  if (item.priority === 'high') return WIDGET_ACCENT;
+  return WIDGET_TEXT;
 }
 
 export function KivoTodayWidgetView({ payload }: KivoTodayWidgetViewProps) {
@@ -96,8 +103,8 @@ export function KivoTodayWidgetView({ payload }: KivoTodayWidgetViewProps) {
                 text={formatItemLine(item)}
                 style={{
                   fontSize: 13,
-                  color: item.priority === 'high' ? WIDGET_ACCENT : WIDGET_TEXT,
-                  fontWeight: item.priority === 'high' ? '600' : 'normal',
+                  color: itemColor(item),
+                  fontWeight: item.source === 'device' || item.priority === 'high' ? '600' : 'normal',
                 }}
                 maxLines={1}
                 truncate="END"
