@@ -12,25 +12,24 @@ type WidgetSetupSheetProps = {
 
 const WIDGET_NAMES = [
   'Agenda de hoy',
-  'Prioridad actual',
-  'Quick Capture',
-  'Focus Points',
+  'No olvides de',
+  'Captura rápida',
 ] as const;
 
 const ANDROID_STEPS = [
-  'Activa los widgets con el interruptor de Accesos rápidos.',
+  'Asegúrate de tener "Widgets de inicio" activo en Perfil (se sincroniza solo).',
   'Mantén presionado un espacio vacío en tu pantalla de inicio.',
   'Toca "Widgets" y busca "Kivo".',
-  'Elige Agenda de hoy, Prioridad actual, Quick Capture o Focus Points.',
-  'Arrástralos donde quieras — todos usan el estilo oscuro de Kivo.',
+  'Elige el widget: verás una vista previa de agenda, No olvides de o captura (no el logo).',
+  'Al añadirlo, abre Kivo una vez para que cargue tus datos reales.',
 ] as const;
 
 const IOS_STEPS = [
-  'Activa los widgets con el interruptor de Accesos rápidos.',
+  'Asegúrate de tener "Widgets de inicio" activo en Perfil (se sincroniza solo).',
   'Mantén presionado cualquier área vacía de la pantalla de inicio.',
   'Toca el botón "+" (esquina superior izquierda).',
-  'Busca "Kivo" y elige el widget que quieras (Agenda, Prioridad, Capture o Focus Points).',
-  'Selecciona el tamaño y toca "Agregar widget".',
+  'Busca "Kivo" y elige Agenda, No olvides de o Captura rápida.',
+  'Selecciona el tamaño, toca "Agregar widget" y abre Kivo una vez para sincronizar.',
 ] as const;
 
 export function WidgetSetupSheet({ visible, onClose }: WidgetSetupSheetProps) {
@@ -49,8 +48,8 @@ export function WidgetSetupSheet({ visible, onClose }: WidgetSetupSheetProps) {
               Widgets de Kivo
             </Text>
             <Text className="text-center text-sm leading-6 text-subtle dark:text-subtle-dark">
-              Cuatro widgets en modo oscuro para tu pantalla de inicio: agenda, prioridad, captura
-              rápida y focus points.
+              Tres widgets en modo oscuro: agenda del día, No olvides de y captura de voz. Al
+              tocarlos abren la pantalla correspondiente en Kivo.
             </Text>
           </View>
 
@@ -82,8 +81,9 @@ export function WidgetSetupSheet({ visible, onClose }: WidgetSetupSheetProps) {
           <View className="flex-row items-center gap-2 rounded-2xl bg-surface-soft px-4 py-3 dark:bg-surface-soft-dark">
             <Ionicons name="information-circle-outline" size={18} color={APP_ACCENT} />
             <Text className="flex-1 text-xs leading-5 text-subtle dark:text-subtle-dark">
-              El sistema no permite agregar widgets automáticamente. Debes hacerlo manualmente una
-              vez. Requiere un build nativo de Kivo (no Expo Go).
+              El sistema no permite agregar widgets automáticamente. Debes hacerlo una vez desde la
+              pantalla de inicio. Tras actualizar la app, reinstala si quieres ver las nuevas vistas
+              previas en el picker de widgets.
             </Text>
           </View>
 

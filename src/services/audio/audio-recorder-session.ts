@@ -18,17 +18,26 @@ export async function configureRecordingAudioMode(): Promise<void> {
   });
 }
 
+function readRecorderStatus(recorder: AudioRecorder) {
+  try {
+    return recorder.getStatus();
+  } catch {
+    // Native shared object may already be released (Integer cast / released object).
+    return null;
+  }
+}
+
 /**
  * Stops an active or prepared recorder session so a new recording can start safely.
  */
 export async function releaseAudioRecorderSession(recorder: AudioRecorder): Promise<void> {
-  const status = recorder.getStatus();
-  if (!status.isRecording && !status.canRecord) return;
+  const status = readRecorderStatus(recorder);
+  if (!status || (!status.isRecording && !status.canRecord)) return;
 
   try {
     await recorder.stop();
   } catch {
-    // Session may already be idle.
+    // Session may already be idle or released.
   }
 }
 
@@ -39,11 +48,17 @@ export async function beginAudioRecordingSession(
   recorder: AudioRecorder,
   options: RecordingOptions,
 ): Promise<void> {
-  let status = recorder.getStatus();
+  let status = readRecorderStatus(recorder);
+  if (!status) return;
 
   if (status.isRecording) {
-    await recorder.stop();
-    status = recorder.getStatus();
+    try {
+      await recorder.stop();
+    } catch {
+      // Already stopped.
+    }
+    status = readRecorderStatus(recorder);
+    if (!status) return;
   }
 
   if (!status.canRecord) {

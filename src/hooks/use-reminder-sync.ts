@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import { useAssistant } from '@/context/assistant-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import {
-  checkNotificationPermissions,
+  checkNotificationPermissionResult,
   syncReminderNotifications,
 } from '@/services/reminders/reminder-notifications';
 
@@ -24,8 +24,10 @@ export function useReminderSync() {
 
   useEffect(() => {
     async function alignPermissionToggles() {
-      const granted = await checkNotificationPermissions();
-      if (granted) return;
+      const result = await checkNotificationPermissionResult();
+      // Only clear prefs when the OS actually denied — not when the feature is
+      // unavailable in this runtime (would falsely disable user settings).
+      if (result.status !== 'denied') return;
 
       if (pushNotifications) await setPushNotifications(false);
       if (reminderNotifications) await setReminderNotifications(false);

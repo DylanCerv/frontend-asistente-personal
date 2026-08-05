@@ -1,3 +1,5 @@
+'use no memo';
+
 import React from 'react';
 import { FlexWidget, SvgWidget, TextWidget } from 'react-native-android-widget';
 
@@ -21,8 +23,8 @@ const MIC_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" 
 </svg>`;
 
 const FALLBACK: WidgetCapturePayload = {
-  title: 'Quick Capture',
-  subtitle: 'TAP TO RECORD',
+  title: 'Captura rápida',
+  subtitle: 'TOCA PARA GRABAR',
   deepLink: WIDGET_DEEP_LINK_CAPTURE,
 };
 

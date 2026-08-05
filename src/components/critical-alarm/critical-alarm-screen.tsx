@@ -181,12 +181,12 @@ export function CriticalAlarmScreen({
             <View className="flex-row gap-2.5">
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Posponer 10 minutos"
+                accessibilityLabel="Posponer 5 minutos"
                 onPress={handleSnooze}
                 className="min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-full border active:opacity-85"
                 style={{ backgroundColor: SURFACE_PILL, borderColor: 'rgba(255,255,255,0.08)' }}>
                 <Ionicons name="alarm-outline" size={18} color={APP_TEXT_MUTED} />
-                <Text className="text-[13px] font-semibold text-white">Posponer 10 min</Text>
+                <Text className="text-[13px] font-semibold text-white">Posponer 5 min</Text>
               </Pressable>
 
               <Pressable

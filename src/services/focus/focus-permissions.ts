@@ -96,7 +96,7 @@ export async function ensureFocusPermissions(
   let dnd = await hasNotificationPolicyAccess();
   if (!dnd && openSettings) {
     await openNotificationPolicySettings();
-    dnd = await hasNotificationPolicyAccess();
+    // Leave dnd as-is until the user returns from Settings and we re-check.
   }
 
   let overlay = true;
@@ -104,7 +104,7 @@ export async function ensureFocusPermissions(
     overlay = await canDrawOverlays();
     if (!overlay && openSettings) {
       await openOverlaySettings();
-      overlay = await canDrawOverlays();
+      // Leave overlay as-is until the user returns from Settings.
     }
   }
 
@@ -126,7 +126,7 @@ export async function ensureFocusPermissions(
     (dnd || !status.dndAvailable) &&
     (effectiveIntensity === 'standard' || overlay);
 
-  return { ok: Boolean(notifications), status, effectiveIntensity };
+  return { ok, status, effectiveIntensity };
 }
 
 /** Soft check without forcing settings screens (for session start). */

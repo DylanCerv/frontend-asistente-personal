@@ -1,11 +1,12 @@
 import { getDueTodayRecords } from '@/services/reminders/reminder-rules';
-import type { TaskItem } from '@/types/assistant';
+import type { CalendarEvent, TaskItem } from '@/types/assistant';
 import type { MemoryRecord } from '@/types/record';
 import { addDays, formatShortDate, todayIso } from '@/utils/date-utils';
 import {
-  getDayProgressPercent,
+  buildFocusDayStats,
   getFocusChecklistTasks,
   getFocusTaskDueLabel,
+  getTodayScopeEvents,
 } from '@/utils/focus-utils';
 import { memoryRecordToTask } from '@/utils/record-mappers';
 
@@ -18,11 +19,15 @@ import {
   type WidgetCapturePayload,
   type WidgetFocusPointsPayload,
   type WidgetHomePayload,
+  type WidgetPriorityItem,
   type WidgetPriorityPayload,
   type WidgetTodayItem,
   type WidgetTodayItemKind,
   type WidgetTodayPayload,
 } from './widget-types';
+
+/** Max flexible tasks shown in the "No olvides de" widget list. */
+const PRIORITY_WIDGET_MAX_ITEMS = 8;
 
 function mapRecordKind(record: MemoryRecord): WidgetTodayItemKind {
   if (record.type === 'meeting') return 'meeting';
@@ -38,12 +43,43 @@ function sortScore(record: MemoryRecord): number {
 }
 
 function compareTodayRecords(a: MemoryRecord, b: MemoryRecord): number {
+  const timeA = a.time && a.time !== 'Sin hora' ? a.time : null;
+  const timeB = b.time && b.time !== 'Sin hora' ? b.time : null;
+
+  if (timeA && timeB) {
+    const byTime = timeA.localeCompare(timeB);
+    if (byTime !== 0) return byTime;
+  } else if (timeA && !timeB) {
+    return -1;
+  } else if (!timeA && timeB) {
+    return 1;
+  }
+
   const scoreDiff = sortScore(a) - sortScore(b);
   if (scoreDiff !== 0) return scoreDiff;
 
-  const timeA = a.time && a.time !== 'Sin hora' ? a.time : '99:99';
-  const timeB = b.time && b.time !== 'Sin hora' ? b.time : '99:99';
-  return timeA.localeCompare(timeB);
+  return a.title.localeCompare(b.title);
+}
+
+function compareWidgetTodayItems(a: WidgetTodayItem, b: WidgetTodayItem): number {
+  const timeA = a.time ?? null;
+  const timeB = b.time ?? null;
+
+  if (timeA && timeB) {
+    const byTime = timeA.localeCompare(timeB);
+    if (byTime !== 0) return byTime;
+  } else if (timeA && !timeB) {
+    return -1;
+  } else if (!timeA && timeB) {
+    return 1;
+  }
+
+  const kindRank = (kind: WidgetTodayItemKind) =>
+    kind === 'meeting' ? 0 : kind === 'reminder' ? 1 : 2;
+  const byKind = kindRank(a.kind) - kindRank(b.kind);
+  if (byKind !== 0) return byKind;
+
+  return a.title.localeCompare(b.title, 'es');
 }
 
 function mapRecordToWidgetItem(record: MemoryRecord): WidgetTodayItem {
@@ -58,6 +94,18 @@ function mapRecordToWidgetItem(record: MemoryRecord): WidgetTodayItem {
   };
 }
 
+function mapCalendarEventToWidgetItem(event: CalendarEvent): WidgetTodayItem {
+  const time = event.time && event.time !== 'Sin hora' ? event.time : undefined;
+
+  return {
+    id: event.id,
+    title: event.title,
+    time,
+    kind: 'meeting',
+    priority: 'normal',
+  };
+}
+
 function recordsToTasks(records: MemoryRecord[]): TaskItem[] {
   return records.map(memoryRecordToTask).filter((task): task is TaskItem => task !== null);
 }
@@ -66,6 +114,7 @@ function countCompletedInRange(tasks: TaskItem[], startIso: string, endIso: stri
   return tasks.filter((task) => {
     if (task.status !== 'completed') return false;
     const completedOn = task.completedAt?.slice(0, 10) ?? task.scheduledAt;
+    if (!completedOn) return false;
     return completedOn >= startIso && completedOn <= endIso;
   }).length;
 }
@@ -79,41 +128,69 @@ function formatPointsValue(points: number): string {
   return String(points);
 }
 
-export function buildTodayWidgetPayload(records: MemoryRecord[]): WidgetTodayPayload {
+/** @deprecated Sorting helper kept for tests / callers that still sort MemoryRecords. */
+export function sortTodayRecordsForWidget(records: MemoryRecord[]): MemoryRecord[] {
+  return [...records].sort(compareTodayRecords);
+}
+
+export function buildTodayWidgetPayload(
+  records: MemoryRecord[],
+  deviceEvents: CalendarEvent[] = [],
+): WidgetTodayPayload {
   const today = todayIso();
-  const todayRecords = getDueTodayRecords(records, today).sort(compareTodayRecords);
-  const visibleRecords = todayRecords.slice(0, WIDGET_MAX_ITEMS);
-  const overflowCount = Math.max(0, todayRecords.length - WIDGET_MAX_ITEMS);
+  const fromRecords = getDueTodayRecords(records, today).map(mapRecordToWidgetItem);
+  const fromDevice = getTodayScopeEvents(deviceEvents, today)
+    .filter((event) => event.status !== 'completed')
+    .map(mapCalendarEventToWidgetItem);
+
+  const seenIds = new Set(fromRecords.map((item) => item.id));
+  const merged = [
+    ...fromRecords,
+    ...fromDevice.filter((item) => !seenIds.has(item.id)),
+  ].sort(compareWidgetTodayItems);
+
+  const visibleItems = merged.slice(0, WIDGET_MAX_ITEMS);
+  const overflowCount = Math.max(0, merged.length - WIDGET_MAX_ITEMS);
 
   const headline =
-    todayRecords.length === 0
+    merged.length === 0
       ? 'Nada pendiente hoy'
-      : todayRecords.length === 1
+      : merged.length === 1
         ? '1 cosa para hoy'
-        : `${todayRecords.length} cosas para hoy`;
+        : `${merged.length} cosas para hoy`;
 
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
     dateLabel: `Hoy, ${formatShortDate(today)}`,
     headline,
-    items: visibleRecords.map(mapRecordToWidgetItem),
+    items: visibleItems,
     overflowCount,
-    emptyMessage: todayRecords.length === 0 ? 'Habla para organizar tu día' : undefined,
+    emptyMessage: merged.length === 0 ? 'Habla para organizar tu día' : undefined,
     enabled: true,
     deepLink: WIDGET_DEEP_LINK_AGENDA,
   };
 }
 
-export function buildPriorityWidgetPayload(tasks: TaskItem[]): WidgetPriorityPayload {
-  const focusTask = getFocusChecklistTasks(tasks, { limit: 1 })[0] ?? null;
-  const progressPercent = getDayProgressPercent(tasks);
+export function buildPriorityWidgetPayload(
+  tasks: TaskItem[],
+  deviceEvents: CalendarEvent[] = [],
+): WidgetPriorityPayload {
+  const checklist = getFocusChecklistTasks(tasks, { limit: PRIORITY_WIDGET_MAX_ITEMS });
+  const progressPercent = buildFocusDayStats(tasks, deviceEvents).progressPercent;
 
-  if (!focusTask) {
+  const items: WidgetPriorityItem[] = checklist.map((task) => ({
+    id: task.id,
+    title: task.title,
+    dueLabel: getFocusTaskDueLabel(task),
+  }));
+
+  if (items.length === 0) {
     return {
-      label: 'PRIORIDAD ACTUAL',
+      label: 'No olvides de',
       title: 'Nada urgente',
       dueLabel: 'Sin tareas pendientes',
+      items: [],
       progressPercent,
       emptyMessage: 'Habla para organizar tu día',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
@@ -121,9 +198,10 @@ export function buildPriorityWidgetPayload(tasks: TaskItem[]): WidgetPriorityPay
   }
 
   return {
-    label: 'PRIORIDAD ACTUAL',
-    title: focusTask.title,
-    dueLabel: getFocusTaskDueLabel(focusTask),
+    label: 'No olvides de',
+    title: items[0].title,
+    dueLabel: items[0].dueLabel,
+    items,
     progressPercent,
     deepLink: WIDGET_DEEP_LINK_FOCUS,
   };
@@ -131,8 +209,8 @@ export function buildPriorityWidgetPayload(tasks: TaskItem[]): WidgetPriorityPay
 
 export function buildCaptureWidgetPayload(): WidgetCapturePayload {
   return {
-    title: 'Quick Capture',
-    subtitle: 'TAP TO RECORD',
+    title: 'Captura rápida',
+    subtitle: 'TOCA PARA GRABAR',
     deepLink: WIDGET_DEEP_LINK_CAPTURE,
   };
 }
@@ -146,7 +224,7 @@ export function buildFocusPointsWidgetPayload(tasks: TaskItem[]): WidgetFocusPoi
   const currentCompleted = countCompletedInRange(tasks, currentStart, today);
   const previousCompleted = countCompletedInRange(tasks, previousStart, previousEnd);
   const points = currentCompleted * 100;
-  const progressPercent = getDayProgressPercent(tasks);
+  const progressPercent = buildFocusDayStats(tasks, []).progressPercent;
 
   let deltaLabel = '—';
   let deltaPositive = true;
@@ -178,7 +256,10 @@ function baseCapture(): WidgetCapturePayload {
   return buildCaptureWidgetPayload();
 }
 
-export function buildHomeWidgetsPayload(records: MemoryRecord[]): WidgetHomePayload {
+export function buildHomeWidgetsPayload(
+  records: MemoryRecord[],
+  deviceEvents: CalendarEvent[] = [],
+): WidgetHomePayload {
   const tasks = recordsToTasks(records);
   const updatedAt = new Date().toISOString();
 
@@ -187,8 +268,8 @@ export function buildHomeWidgetsPayload(records: MemoryRecord[]): WidgetHomePayl
     updatedAt,
     enabled: true,
     signedIn: true,
-    today: buildTodayWidgetPayload(records),
-    priority: buildPriorityWidgetPayload(tasks),
+    today: buildTodayWidgetPayload(records, deviceEvents),
+    priority: buildPriorityWidgetPayload(tasks, deviceEvents),
     capture: baseCapture(),
     focusPoints: buildFocusPointsWidgetPayload(tasks),
   };
@@ -198,11 +279,11 @@ export function buildDisabledWidgetPayload(): WidgetTodayPayload {
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
-    dateLabel: '',
-    headline: 'Widget desactivado',
+    dateLabel: 'Hoy',
+    headline: 'Tu agenda',
     items: [],
     overflowCount: 0,
-    emptyMessage: 'Actívalo en Perfil → Accesos rápidos',
+    emptyMessage: 'Activa widgets en Perfil',
     enabled: false,
     deepLink: WIDGET_DEEP_LINK_AGENDA,
   };
@@ -212,13 +293,55 @@ export function buildSignedOutWidgetPayload(): WidgetTodayPayload {
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
-    dateLabel: '',
-    headline: 'Kivo',
+    dateLabel: 'Hoy',
+    headline: 'Tu día en Kivo',
     items: [],
     overflowCount: 0,
-    emptyMessage: 'Inicia sesión para ver tu día',
+    emptyMessage: 'Inicia sesión para sincronizar',
     enabled: false,
     deepLink: WIDGET_DEEP_LINK_AGENDA,
+  };
+}
+
+/** Shown when the widget is on the home screen but the app has not synced yet. */
+export function buildNeedsSyncHomeWidgetsPayload(): WidgetHomePayload {
+  const updatedAt = new Date().toISOString();
+
+  return {
+    version: 2,
+    updatedAt,
+    enabled: true,
+    signedIn: true,
+    today: {
+      version: 1,
+      updatedAt,
+      dateLabel: 'Hoy',
+      headline: 'Tu agenda',
+      items: [],
+      overflowCount: 0,
+      emptyMessage: 'Abre Kivo para sincronizar',
+      enabled: true,
+      deepLink: WIDGET_DEEP_LINK_AGENDA,
+    },
+    priority: {
+      label: 'No olvides de',
+      title: 'Tu prioridad',
+      dueLabel: 'Abre Kivo para sincronizar',
+      items: [],
+      progressPercent: 0,
+      emptyMessage: 'Abre Kivo para sincronizar',
+      deepLink: WIDGET_DEEP_LINK_FOCUS,
+    },
+    capture: baseCapture(),
+    focusPoints: {
+      valueLabel: '0',
+      label: 'Focus Points',
+      deltaLabel: '—',
+      deltaPositive: true,
+      progressPercent: 0,
+      emptyMessage: 'Abre Kivo para sincronizar',
+      deepLink: WIDGET_DEEP_LINK_REPORT,
+    },
   };
 }
 
@@ -233,21 +356,22 @@ export function buildDisabledHomeWidgetsPayload(): WidgetHomePayload {
     signedIn: true,
     today,
     priority: {
-      label: 'PRIORIDAD ACTUAL',
-      title: 'Widget desactivado',
-      dueLabel: 'Actívalo en Perfil',
+      label: 'No olvides de',
+      title: 'Tu prioridad',
+      dueLabel: 'Activa widgets en Perfil',
+      items: [],
       progressPercent: 0,
-      emptyMessage: 'Actívalo en Perfil → Accesos rápidos',
+      emptyMessage: 'Activa widgets en Perfil',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
     },
     capture: baseCapture(),
     focusPoints: {
-      valueLabel: '—',
+      valueLabel: '0',
       label: 'Focus Points',
       deltaLabel: '—',
       deltaPositive: true,
       progressPercent: 0,
-      emptyMessage: 'Actívalo en Perfil → Accesos rápidos',
+      emptyMessage: 'Activa widgets en Perfil',
       deepLink: WIDGET_DEEP_LINK_REPORT,
     },
   };
@@ -264,16 +388,17 @@ export function buildSignedOutHomeWidgetsPayload(): WidgetHomePayload {
     signedIn: false,
     today,
     priority: {
-      label: 'PRIORIDAD ACTUAL',
+      label: 'No olvides de',
       title: 'Kivo',
       dueLabel: 'Inicia sesión',
+      items: [],
       progressPercent: 0,
       emptyMessage: 'Inicia sesión para ver tu prioridad',
       deepLink: WIDGET_DEEP_LINK_FOCUS,
     },
     capture: baseCapture(),
     focusPoints: {
-      valueLabel: '—',
+      valueLabel: '0',
       label: 'Focus Points',
       deltaLabel: '—',
       deltaPositive: true,

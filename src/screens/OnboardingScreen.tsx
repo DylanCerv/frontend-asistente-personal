@@ -273,7 +273,7 @@ export function OnboardingScreen({ userName, onComplete }: OnboardingScreenProps
                 title="Widgets de inicio"
                 subtitle={
                   isAndroidWidgetSupported() || isIosWidgetSupported()
-                    ? 'Agenda, prioridad, captura y focus points en modo oscuro'
+                    ? 'Agenda, prioridad y captura rápida en modo oscuro'
                     : 'Disponible en iPhone y Android con build nativo'
                 }
                 onPress={() => setHomeWidgetEnabled((prev) => !prev)}

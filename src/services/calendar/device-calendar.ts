@@ -3,6 +3,14 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
 import { isNativeBuildEnabled } from '@/config/native-build';
+import {
+  deniedResult,
+  getNativeFeatureUnavailableReason,
+  grantedResult,
+  isPermissionGranted,
+  unavailableResult,
+  type PermissionResult,
+} from '@/services/permissions/permission-result';
 import type { ExternalCalendarEvent } from '@/types/device-calendar';
 import { addDays, toIsoDate, todayIso } from '@/utils/date-utils';
 
@@ -20,6 +28,10 @@ export function canUseDeviceCalendar(): boolean {
     Device.isDevice &&
     !isRunningInExpoGo()
   );
+}
+
+export function getCalendarPermissionUnavailableReason() {
+  return getNativeFeatureUnavailableReason();
 }
 
 async function getCalendarModule(): Promise<CalendarModule | null> {
@@ -72,23 +84,37 @@ function mapEvent(
   };
 }
 
-export async function checkCalendarPermission(): Promise<boolean> {
+export async function checkCalendarPermissionResult(): Promise<PermissionResult> {
+  const unavailable = getNativeFeatureUnavailableReason();
+  if (unavailable) return unavailableResult(unavailable);
+
   const Calendar = await getCalendarModule();
-  if (!Calendar) return false;
+  if (!Calendar) return unavailableResult('missing_native_flag');
 
   const current = await Calendar.getCalendarPermissionsAsync();
-  return current.granted ?? false;
+  return current.granted ? grantedResult() : deniedResult();
+}
+
+export async function requestCalendarPermissionResult(): Promise<PermissionResult> {
+  const unavailable = getNativeFeatureUnavailableReason();
+  if (unavailable) return unavailableResult(unavailable);
+
+  const Calendar = await getCalendarModule();
+  if (!Calendar) return unavailableResult('missing_native_flag');
+
+  const current = await Calendar.getCalendarPermissionsAsync();
+  if (current.granted) return grantedResult();
+
+  const requested = await Calendar.requestCalendarPermissionsAsync();
+  return requested.granted ? grantedResult() : deniedResult();
+}
+
+export async function checkCalendarPermission(): Promise<boolean> {
+  return isPermissionGranted(await checkCalendarPermissionResult());
 }
 
 export async function requestCalendarPermission(): Promise<boolean> {
-  const Calendar = await getCalendarModule();
-  if (!Calendar) return false;
-
-  const current = await Calendar.getCalendarPermissionsAsync();
-  if (current.granted) return true;
-
-  const requested = await Calendar.requestCalendarPermissionsAsync();
-  return requested.granted ?? false;
+  return isPermissionGranted(await requestCalendarPermissionResult());
 }
 
 export async function fetchDeviceEvents(options?: {

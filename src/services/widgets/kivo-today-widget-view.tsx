@@ -1,5 +1,7 @@
+'use no memo';
+
 import React from 'react';
-import { FlexWidget, TextWidget } from 'react-native-android-widget';
+import { FlexWidget, ListWidget, TextWidget } from 'react-native-android-widget';
 
 import {
   WIDGET_ACCENT,
@@ -72,29 +74,50 @@ export function KivoTodayWidgetView({ payload }: KivoTodayWidgetViewProps) {
           maxLines={3}
         />
       ) : (
-        data.items.map((item) => (
-          <TextWidget
-            key={item.id}
-            text={formatItemLine(item)}
-            style={{
-              fontSize: 13,
-              color: item.priority === 'high' ? WIDGET_ACCENT : WIDGET_TEXT,
-              fontWeight: item.priority === 'high' ? '600' : 'normal',
-              marginTop: 8,
-            }}
-            maxLines={1}
-            truncate="END"
-          />
-        ))
+        <ListWidget
+          style={{
+            width: 'match_parent',
+            height: 'match_parent',
+            marginTop: 6,
+          }}>
+          {data.items.map((item) => (
+            <FlexWidget
+              key={item.id}
+              style={{
+                width: 'match_parent',
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingTop: 6,
+                paddingBottom: 6,
+              }}
+              clickAction="OPEN_URI"
+              clickActionData={{ uri: data.deepLink }}>
+              <TextWidget
+                text={formatItemLine(item)}
+                style={{
+                  fontSize: 13,
+                  color: item.priority === 'high' ? WIDGET_ACCENT : WIDGET_TEXT,
+                  fontWeight: item.priority === 'high' ? '600' : 'normal',
+                }}
+                maxLines={1}
+                truncate="END"
+              />
+            </FlexWidget>
+          ))}
+          {data.overflowCount > 0 ? (
+            <FlexWidget
+              style={{ width: 'match_parent', paddingTop: 4, paddingBottom: 4 }}
+              clickAction="OPEN_URI"
+              clickActionData={{ uri: data.deepLink }}>
+              <TextWidget
+                text={`+${data.overflowCount} más · tocar para abrir`}
+                style={{ fontSize: 12, color: WIDGET_TEXT_MUTED }}
+                maxLines={1}
+              />
+            </FlexWidget>
+          ) : null}
+        </ListWidget>
       )}
-
-      {data.overflowCount > 0 ? (
-        <TextWidget
-          text={`+${data.overflowCount} más`}
-          style={{ fontSize: 12, color: WIDGET_TEXT_MUTED, marginTop: 10 }}
-          maxLines={1}
-        />
-      ) : null}
     </FlexWidget>
   );
 }

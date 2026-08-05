@@ -99,7 +99,6 @@ export async function refreshAndroidWidgets(payload: WidgetHomePayload): Promise
     const { KivoTodayWidgetView } = await import('./kivo-today-widget-view');
     const { KivoPriorityWidgetView } = await import('./kivo-priority-widget-view');
     const { KivoCaptureWidgetView } = await import('./kivo-capture-widget-view');
-    const { KivoFocusPointsWidgetView } = await import('./kivo-focus-points-widget-view');
 
     await Promise.all(
       ANDROID_WIDGET_NAMES.map(async (widgetName) => {
@@ -115,11 +114,6 @@ export async function refreshAndroidWidgets(payload: WidgetHomePayload): Promise
               case 'KivoCapture':
                 return React.createElement(KivoCaptureWidgetView, {
                   payload: payload.capture,
-                });
-              case 'KivoFocusPoints':
-                return React.createElement(KivoFocusPointsWidgetView, {
-                  payload: payload.focusPoints,
-                  enabled: payload.enabled,
                 });
               case 'KivoToday':
               default:
@@ -179,16 +173,17 @@ export async function syncHomeWidget(payload: WidgetTodayPayload): Promise<void>
         signedIn: payload.enabled,
         today: payload,
         priority: {
-          label: 'PRIORIDAD ACTUAL',
+          label: 'No olvides de',
           title: payload.headline,
           dueLabel: payload.emptyMessage ?? '',
+          items: [],
           progressPercent: 0,
-          deepLink: 'kivo:///',
+          deepLink: 'kivo://',
         },
         capture: {
-          title: 'Quick Capture',
-          subtitle: 'TAP TO RECORD',
-          deepLink: 'kivo://capture',
+          title: 'Captura rápida',
+          subtitle: 'TOCA PARA GRABAR',
+          deepLink: 'kivo://assistant?autoRecord=1',
         },
         focusPoints: {
           valueLabel: '—',

@@ -10,7 +10,6 @@ import {
   ProfileSettingsSheet,
   type ProfileSheetType,
 } from '@/components/profile-settings-sheet';
-import { KivoAlertsSheet } from '@/components/kivo-alerts/kivo-alerts-sheet';
 import { KivoWordmark } from '@/components/kivo-wordmark';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 import { WidgetSetupSheet } from '@/components/widget-setup-sheet';
@@ -30,8 +29,15 @@ import { useDeviceCalendar } from '@/context/device-calendar-context';
 import { useSubscription } from '@/context/subscription-context';
 import { useUserPreferences, HOME_WIDGET_SETUP_PENDING_KEY } from '@/context/user-preferences-context';
 import { showAppAlert } from '@/services/app-dialog';
-import { canUseDeviceCalendar } from '@/services/calendar/device-calendar';
+import {
+  canUseDeviceCalendar,
+  getCalendarPermissionUnavailableReason,
+  requestCalendarPermissionResult,
+} from '@/services/calendar/device-calendar';
 import { getFocusLockIntensityShortLabel } from '@/services/focus/focus-lock-intensity';
+import { permissionUnavailableMessage } from '@/services/permissions/permission-result';
+import { showPermissionResultAlert } from '@/services/permissions/show-permission-alert';
+import { openAppNotificationSettings } from '@/services/focus/focus-permissions';
 import { uploadAvatar } from '@/services/profiles/avatar-upload';
 
 const TEAL = '#2DD4BF';
@@ -68,7 +74,7 @@ const QUICK_ACCESS_OPTIONS: QuickAccessItem[] = [
     id: 'deep-link',
     icon: 'link-outline',
     label: 'Atajo del sistema (Samsung/Siri)',
-    description: 'kivo://capture — abre la captura de voz desde atajos del sistema.',
+    description: 'kivo://assistant?autoRecord=1 — abre el Asistente y empieza a grabar.',
     status: 'available',
     tutorial: {
       platform: 'both',
@@ -78,13 +84,13 @@ const QUICK_ACCESS_OPTIONS: QuickAccessItem[] = [
               'Abre "Bixby Routines" o "Autopilot" en Samsung, o "Tasker" en otros Android.',
               'Crea una nueva rutina con el desencadenador que prefieras (doble botón lateral, gestos, etc.).',
               'Como acción, selecciona "Abrir URL/deep link".',
-              'Escribe: kivo://capture',
+              'Escribe: kivo://assistant?autoRecord=1',
               'Guarda la rutina — desde ahora ese atajo abre Kivo directo al micrófono.',
             ]
           : [
               'Abre la app "Atajos" (ya viene en iPhone).',
               'Toca "+" para crear un nuevo atajo.',
-              'Busca la acción "Abrir URL" y escribe: kivo://capture',
+              'Busca la acción "Abrir URL" y escribe: kivo://assistant?autoRecord=1',
               'Nómbralo "Capturar con Kivo".',
               'Toca el ícono del atajo → "Agregar a pantalla de inicio" para tener un acceso directo.',
               'También puedes agregarlo a Siri diciendo "Capturar con Kivo".',
@@ -191,7 +197,6 @@ export default function ProfileScreen() {
   const { enableDeviceCalendarSync, refreshDeviceCalendar } = useDeviceCalendar();
   const { plan, planId } = useSubscription();
   const [activeSheet, setActiveSheet] = useState<ProfileSheetType>(null);
-  const [showKivoAlerts, setShowKivoAlerts] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [expandedQuickAccess, setExpandedQuickAccess] = useState<string | null>(null);
   const [showWidgetSetup, setShowWidgetSetup] = useState(false);
@@ -407,14 +412,15 @@ export default function ProfileScreen() {
             <SectionLabel>Organización</SectionLabel>
             <SettingsCard>
               <SettingsRow
+                icon="shield-checkmark-outline"
+                label="Permisos del dispositivo"
+                value="Gestionar"
+                onPress={() => setActiveSheet('permissions')}
+              />
+              <SettingsRow
                 icon="notifications-outline"
                 label="Notificaciones"
                 onPress={() => setActiveSheet('notifications')}
-              />
-              <SettingsRow
-                icon="flash-outline"
-                label="Alertas Kivo"
-                onPress={() => setShowKivoAlerts(true)}
               />
               <SettingsRow
                 icon="calendar-outline"
@@ -433,17 +439,31 @@ export default function ProfileScreen() {
                             return;
                           }
                           if (!canUseDeviceCalendar()) {
+                            const reason = getCalendarPermissionUnavailableReason();
                             showAppAlert(
-                              'Build nativo requerido',
-                              'La sincronización del calendario del teléfono funciona en APK / dev client (EXPO_PUBLIC_NATIVE_BUILD=1), no en Expo Go.',
+                              'No disponible',
+                              permissionUnavailableMessage(reason ?? 'expo_go'),
                             );
+                            return;
+                          }
+                          const result = await requestCalendarPermissionResult();
+                          if (result.status !== 'granted') {
+                            showPermissionResultAlert(result, {
+                              deniedMessage:
+                                'Sin acceso al calendario del celular, Kivo no puede importar tus reuniones.',
+                              onOpenSettings: openAppNotificationSettings,
+                            });
                             return;
                           }
                           const ok = await enableDeviceCalendarSync();
                           if (!ok) {
-                            showAppAlert(
-                              'Permiso requerido',
-                              'Sin acceso al calendario del celular, Kivo no puede importar tus reuniones.',
+                            showPermissionResultAlert(
+                              { status: 'denied' },
+                              {
+                                deniedMessage:
+                                  'Sin acceso al calendario del celular, Kivo no puede importar tus reuniones.',
+                                onOpenSettings: openAppNotificationSettings,
+                              },
                             );
                             return;
                           }
@@ -508,8 +528,8 @@ export default function ProfileScreen() {
                 <View className="flex-1 gap-1">
                   <Text className="text-[15px] font-bold text-foreground">Widgets y atajos</Text>
                   <Text className="text-sm leading-5" style={{ color: APP_TEXT_MUTED }}>
-                    Cuatro widgets oscuros en tu pantalla de inicio: agenda, prioridad, captura
-                    rápida y focus points.
+                    Tres widgets oscuros en tu pantalla de inicio: agenda, No olvides de y captura
+                    rápida.
                   </Text>
                 </View>
               </View>
@@ -660,8 +680,11 @@ export default function ProfileScreen() {
         </ScrollView>
       </ScreenSafeArea>
 
-      <ProfileSettingsSheet type={activeSheet} onClose={() => setActiveSheet(null)} />
-      <KivoAlertsSheet visible={showKivoAlerts} onClose={() => setShowKivoAlerts(false)} />
+      <ProfileSettingsSheet
+        type={activeSheet}
+        onClose={() => setActiveSheet(null)}
+        onOpenWidgetSetup={() => setShowWidgetSetup(true)}
+      />
       <WidgetSetupSheet visible={showWidgetSetup} onClose={() => setShowWidgetSetup(false)} />
     </View>
   );
