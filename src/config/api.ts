@@ -7,10 +7,11 @@ type ExpoExtra = {
 
 const extra = Constants.expoConfig?.extra as ExpoExtra | undefined;
 
-export const API_BASE_URL =
+export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   extra?.apiBaseUrl ??
-  'http://localhost:3000/api';
+  'http://localhost:3000/api'
+).replace(/\/$/, '');
 
 export const SUPABASE_URL =
   process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra?.supabaseUrl ?? '';

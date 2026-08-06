@@ -21,9 +21,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
         ...headers,
       },
     });
-  } catch {
+  } catch (error) {
+    const detail =
+      error instanceof Error && error.message ? ` (${error.message})` : '';
     throw new ApiError(
-      'No se pudo conectar con el servidor. Revisa que el backend esté en marcha.',
+      `No se pudo conectar con el servidor (${API_BASE_URL})${detail}. Revisa que el backend esté en marcha.`,
       0,
     );
   }

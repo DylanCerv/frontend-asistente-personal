@@ -105,6 +105,14 @@ module.exports = () => ({
     plugins: [
       ...(appJson.expo.plugins ?? []),
       ...nativeBuildPlugins,
+      [
+        "expo-build-properties",
+        {
+          android: {
+            usesCleartextTraffic: true,
+          },
+        },
+      ],
       "expo-asset",
       "expo-apple-authentication",
       [
