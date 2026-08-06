@@ -106,9 +106,11 @@ class KivoFocusLockModule : Module() {
   private fun openNotificationPolicySettings() {
     val context = appContextSafe()
     // Prefer the per-app DND access screen when available (API 30+).
+    // Use the action string: Settings.ACTION_NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS
+    // is not always on the compile classpath for Expo modules.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       try {
-        val detail = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS).apply {
+        val detail = Intent("android.settings.NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS").apply {
           data = Uri.parse("package:${context.packageName}")
           addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
