@@ -8,7 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_NATIVE_BUILD": "1"
+        "EXPO_PUBLIC_NATIVE_BUILD": "1",
+        "EXPO_PUBLIC_API_BASE_URL": "http://3.131.96.19:3002/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dwbotbxqwdhultimuims.supabase.co"
       },
       "android": {
         "buildType": "apk"
@@ -17,7 +19,9 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_NATIVE_BUILD": "1"
+        "EXPO_PUBLIC_NATIVE_BUILD": "1",
+        "EXPO_PUBLIC_API_BASE_URL": "http://3.131.96.19:3002/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dwbotbxqwdhultimuims.supabase.co"
       },
       "android": {
         "buildType": "apk"
@@ -25,7 +29,9 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_NATIVE_BUILD": "1"
+        "EXPO_PUBLIC_NATIVE_BUILD": "1",
+        "EXPO_PUBLIC_API_BASE_URL": "http://3.131.96.19:3002/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dwbotbxqwdhultimuims.supabase.co"
       },
       "android": {
         "buildType": "app-bundle"
