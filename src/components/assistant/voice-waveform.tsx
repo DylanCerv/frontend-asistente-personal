@@ -96,16 +96,19 @@ function WaveBar({
 
 type VoiceWaveformProps = {
   active?: boolean;
+  /** Smaller bars for compact surfaces (e.g. floating capture card). */
+  compact?: boolean;
 };
 
-export function VoiceWaveform({ active = true }: VoiceWaveformProps) {
+export function VoiceWaveform({ active = true, compact = false }: VoiceWaveformProps) {
   return (
-    <View className="h-14 flex-row items-end justify-center gap-1.5">
+    <View
+      className={`flex-row items-end justify-center ${compact ? 'h-8 gap-1' : 'h-14 gap-1.5'}`}>
       {BARS.map((bar, index) => (
         <WaveBar
           key={index}
           index={index}
-          baseHeight={bar.height}
+          baseHeight={compact ? Math.round(bar.height * 0.55) : bar.height}
           delay={bar.delay}
           peak={bar.peak}
           color={bar.color}

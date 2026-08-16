@@ -1,22 +1,23 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
-import { useRouter, useSegments } from 'expo-router';
+import { useSegments } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { useBottomInset } from '@/components/screen-safe-area';
 import { APP_ACCENT, APP_ON_ACCENT } from '@/constants/app-colors';
+import { useVoiceCapture } from '@/context/voice-capture-context';
 
 function shouldHideFloatingMic(segments: string[]): boolean {
   const last = segments[segments.length - 1];
-  // Hide on Assistant (has its own capture UI). Show on Focus and the rest.
+  // Hide on Assistant (has its own capture UI). Show on Focus, Tareas, Perfil, etc.
   return last === 'assistant';
 }
 
 export function FloatingMicButton() {
-  const router = useRouter();
   const bottomOffset = useBottomInset(76);
   const segments = useSegments();
+  const { isOpen, openCapture } = useVoiceCapture();
 
-  if (shouldHideFloatingMic(segments as string[])) {
+  if (shouldHideFloatingMic(segments as string[]) || isOpen) {
     return null;
   }
 
@@ -28,9 +29,7 @@ export function FloatingMicButton() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Grabar audio"
-        onPress={() =>
-          router.push({ pathname: '/assistant', params: { autoRecord: '1' } })
-        }
+        onPress={() => openCapture({ autoStart: true })}
         className="h-16 w-16 items-center justify-center rounded-full active:opacity-85"
         style={{
           backgroundColor: APP_ACCENT,
