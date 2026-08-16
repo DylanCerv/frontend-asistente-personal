@@ -38,9 +38,9 @@ export const ALERT_SOUND_PRESETS: AlertSoundPreset[] = [
     id: 'kivo_clear',
     label: 'Kivo',
     description: 'Tono limpio y reconocible de Kivo',
-    nativeSoundName: 'kivo-clear',
+    nativeSoundName: 'kivo_clear',
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    asset: require('../../../assets/sounds/kivo-clear.wav'),
+    asset: require('../../../assets/sounds/kivo_clear.wav'),
   },
 ];
 
@@ -124,6 +124,19 @@ export function resolveVibrationPattern(
 ): number[] {
   const preset = getAlertVibrationPreset(vibrationId);
   return isAlarm ? preset.alarmPattern : preset.pattern;
+}
+
+/**
+ * Notifee rejects 0 and requires an even count of strictly positive ms values.
+ * RN Vibration.vibrate still accepts patterns that start with 0.
+ */
+export function toNotifeeVibrationPattern(pattern: number[]): number[] {
+  const positive = pattern.filter((ms) => typeof ms === 'number' && Number.isFinite(ms) && ms > 0);
+  if (positive.length === 0) return [200, 100];
+  if (positive.length % 2 !== 0) {
+    positive.push(100);
+  }
+  return positive;
 }
 
 /** Bundled asset for Kivo tone only. System/custom use URIs. */

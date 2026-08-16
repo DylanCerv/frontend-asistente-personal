@@ -19,10 +19,10 @@ import { useAuth } from '@/context/auth-context';
 import { VoiceCaptureProvider } from '@/context/voice-capture-context';
 import { useQuickActionsSetup } from '@/hooks/use-quick-actions-setup';
 
-/** Widgets, local notifications, quick actions — APK only (EXPO_PUBLIC_NATIVE_BUILD=1). */
+/** Widgets, local notifications, quick actions — native APK / iOS only (off in Expo Go). */
 const enableNativeExtras = isNativeBuildEnabled() && !isRunningInExpoGo();
 
-/** Native-only wiring. Keep off in Expo Go; re-enable with EXPO_PUBLIC_NATIVE_BUILD=1. */
+/** Native-only wiring. Off in Expo Go; on in development client and store builds. */
 function NativeExtras() {
   useQuickActionsSetup();
 

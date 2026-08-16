@@ -176,7 +176,7 @@ export function FocusSettingsPanel() {
         <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
           {Platform.OS === 'ios'
             ? 'En iOS no se puede activar No Molestar ni overlay desde la app. La sesión Focus sigue disponible dentro de Kivo con temporizador y controles.'
-            : 'Estos permisos solo aplican en la APK nativa (no en Expo Go). Si falta el overlay en modo Estricto, la sesión bajará a Estándar automáticamente.'}
+            : 'Estos permisos aplican en Android. Si falta el overlay en modo Estricto, la sesión bajará a Estándar automáticamente.'}
         </Text>
       </View>
     </View>

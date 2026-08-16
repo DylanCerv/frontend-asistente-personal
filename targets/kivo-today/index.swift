@@ -7,6 +7,5 @@ struct KivoTodayWidgetBundle: WidgetBundle {
     KivoTodayWidget()
     KivoPriorityWidget()
     KivoCaptureWidget()
-    KivoFocusPointsWidget()
   }
 }

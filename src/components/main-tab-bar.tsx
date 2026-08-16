@@ -89,8 +89,8 @@ export function MainTabBar({ state, descriptors, navigation }: BottomTabBarProps
         backgroundColor: APP_SURFACE,
         borderTopColor: APP_BORDER,
         borderTopWidth: 1,
-        paddingBottom: Math.max(insets.bottom, 6),
-        paddingTop: 4,
+        paddingBottom: Math.max(insets.bottom + 8, 14),
+        paddingTop: 6,
       }}>
       <View className="flex-row items-center justify-around px-2">
         {state.routes.map((route) => {

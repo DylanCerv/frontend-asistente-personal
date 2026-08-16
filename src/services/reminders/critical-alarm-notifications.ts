@@ -5,10 +5,19 @@ import { Platform } from 'react-native';
 
 import { isNativeBuildEnabled } from '@/config/native-build';
 import {
+  deniedResult,
+  getNativeFeatureUnavailableReason,
+  grantedResult,
+  isPermissionGranted,
+  unavailableResult,
+  type PermissionResult,
+} from '@/services/permissions/permission-result';
+import {
   DEFAULT_REMINDER_ALERT_SOUND,
   DEFAULT_REMINDER_ALERT_VIBRATION,
   resolveNativeSoundName,
   resolveVibrationPattern,
+  toNotifeeVibrationPattern,
   type ReminderAlertSoundId,
   type ReminderAlertVibrationId,
 } from '@/services/reminders/reminder-alert-presets';
@@ -26,7 +35,7 @@ import {
 
 export const CRITICAL_ALARM_CHANNEL_ID = 'kivo-critical-alarm';
 export const CRITICAL_ALARM_ID_PREFIX = 'kivo-fs-alarm-';
-export const CRITICAL_SNOOZE_MINUTES = 10;
+export const CRITICAL_SNOOZE_MINUTES = 5;
 
 export const ACTION_COMPLETE = 'complete';
 export const ACTION_SNOOZE = 'snooze';
@@ -107,7 +116,9 @@ async function ensureCriticalAlarmChannel(
     visibility: notifee.AndroidVisibility.PUBLIC,
     sound,
     vibration: vibrate,
-    vibrationPattern: vibrate ? resolveVibrationPattern(vibrationId, true) : undefined,
+    vibrationPattern: vibrate
+      ? toNotifeeVibrationPattern(resolveVibrationPattern(vibrationId, true))
+      : undefined,
     lights: true,
     lightColor: '#C4B5FD',
   });
@@ -210,11 +221,11 @@ async function scheduleOneCriticalAlarm(
             pressAction: { id: ACTION_COMPLETE },
           },
           {
-            title: 'Posponer 10 min',
+            title: 'Posponer 5 min',
             pressAction: { id: ACTION_SNOOZE },
           },
           {
-            title: 'Hablar con Kivo',
+            title: 'Hablar',
             pressAction: { id: ACTION_TALK, launchActivity: 'default' },
           },
         ],
@@ -308,6 +319,31 @@ export async function presentTestCriticalAlarm(
 
   await scheduleOneCriticalAlarm(notifee, scheduleItem, alertStyle, media);
   return true;
+}
+
+export async function checkExactAlarmPermissionResult(): Promise<PermissionResult> {
+  const unavailable = getNativeFeatureUnavailableReason({ androidOnly: true });
+  if (unavailable) return unavailableResult(unavailable);
+
+  const notifee = await getNotifee();
+  if (!notifee) return unavailableResult('missing_native_flag');
+
+  try {
+    const settings = await notifee.default.getNotificationSettings();
+    const alarmValue = settings.android?.alarm;
+    if (alarmValue === -1 || alarmValue === undefined) {
+      // Older APIs / not supported — treat as granted when notifications work.
+      return grantedResult();
+    }
+    if (alarmValue === 1) return grantedResult();
+    return deniedResult();
+  } catch {
+    return deniedResult();
+  }
+}
+
+export async function checkExactAlarmPermission(): Promise<boolean> {
+  return isPermissionGranted(await checkExactAlarmPermissionResult());
 }
 
 export async function openFullScreenIntentSettings(): Promise<void> {

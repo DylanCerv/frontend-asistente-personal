@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isRunningInExpoGo } from 'expo';
 import {
   createContext,
   useCallback,
@@ -9,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { isNativeBuildEnabled } from '@/config/native-build';
 import {
   getMySettings,
   updateMySettings,
@@ -204,6 +206,12 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
 
         if (homeWidget === 'true') {
           setHomeWidgetEnabledState(true);
+        } else if (homeWidget === 'false') {
+          setHomeWidgetEnabledState(false);
+        } else if (isNativeBuildEnabled() && !isRunningInExpoGo()) {
+          // Product default: sync widgets on native builds unless the user opted out.
+          setHomeWidgetEnabledState(true);
+          await AsyncStorage.setItem(HOME_WIDGET_ENABLED_KEY, 'true');
         }
 
         if (dailySummary === 'false') {
@@ -259,7 +267,14 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       const updated = await updateMySettings(patch);
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(updated));
     } catch {
-      // save locally; will sync on next loadFromBackend
+      // Keep preference locally if the network/API fails; next loadFromBackend will sync.
+      try {
+        const raw = await AsyncStorage.getItem(CACHE_KEY);
+        const cached = raw ? (JSON.parse(raw) as Partial<UserSettings>) : {};
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ ...cached, ...patch }));
+      } catch {
+        // ignore cache write errors
+      }
     }
   }
 

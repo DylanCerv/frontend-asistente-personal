@@ -8,7 +8,7 @@
     "scheme": "kivo",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.kivo.app",
       "entitlements": {
@@ -32,7 +32,7 @@
         "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#050505",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -50,6 +50,9 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
           "backgroundColor": "#050505"
         }
       ],
@@ -66,6 +69,14 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:3000/api",
+      "supabaseUrl": "",
+      "router": {},
+      "eas": {
+        "projectId": "2be79503-ab8b-482b-a863-b1eaebd52f07"
+      }
     }
   }
 }

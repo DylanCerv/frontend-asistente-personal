@@ -13,7 +13,6 @@ export const ANDROID_WIDGET_NAMES = [
   WIDGET_NAME_TODAY,
   WIDGET_NAME_PRIORITY,
   WIDGET_NAME_CAPTURE,
-  WIDGET_NAME_FOCUS_POINTS,
 ] as const;
 
 export type AndroidWidgetName = (typeof ANDROID_WIDGET_NAMES)[number];
@@ -30,14 +29,15 @@ export const IOS_WIDGET_KINDS = [
   IOS_WIDGET_KIND_TODAY,
   IOS_WIDGET_KIND_PRIORITY,
   IOS_WIDGET_KIND_CAPTURE,
-  IOS_WIDGET_KIND_FOCUS_POINTS,
 ] as const;
 
-export const WIDGET_MAX_ITEMS = 5;
+/** Visible rows in the agenda widget list (ListWidget scrolls when taller). */
+export const WIDGET_MAX_ITEMS = 12;
 
 export const WIDGET_DEEP_LINK_AGENDA = 'kivo://agenda';
-export const WIDGET_DEEP_LINK_FOCUS = 'kivo:///';
-export const WIDGET_DEEP_LINK_CAPTURE = 'kivo://capture';
+export const WIDGET_DEEP_LINK_FOCUS = 'kivo://';
+/** Opens Assistant and starts voice recording. */
+export const WIDGET_DEEP_LINK_CAPTURE = 'kivo://assistant?autoRecord=1';
 export const WIDGET_DEEP_LINK_REPORT = 'kivo://report';
 
 /** @deprecated Prefer WIDGET_DEEP_LINK_AGENDA */
@@ -51,6 +51,8 @@ export type WidgetTodayItem = {
   time?: string;
   kind: WidgetTodayItemKind;
   priority?: 'high' | 'normal';
+  /** Device calendar imports vs records created inside Kivo. */
+  source?: 'kivo' | 'device';
 };
 
 export type WidgetTodayPayload = {
@@ -65,11 +67,21 @@ export type WidgetTodayPayload = {
   deepLink: string;
 };
 
+export type WidgetPriorityItem = {
+  id: string;
+  title: string;
+  dueLabel: string;
+};
+
 export type WidgetPriorityPayload = {
   label: string;
   title: string;
   dueLabel: string;
+  /** Flexible / undated tasks — ListWidget scrolls when there are several. */
+  items?: WidgetPriorityItem[];
   progressPercent: number;
+  /** Completed/total for today, e.g. "2/5". */
+  progressLabel: string;
   emptyMessage?: string;
   deepLink: string;
 };

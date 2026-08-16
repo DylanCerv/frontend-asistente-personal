@@ -1,3 +1,5 @@
+'use no memo';
+
 import React from 'react';
 import { FlexWidget, SvgWidget, TextWidget } from 'react-native-android-widget';
 
@@ -22,11 +24,12 @@ const CHART_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16
 </svg>`;
 
 const FALLBACK: WidgetFocusPointsPayload = {
-  valueLabel: '—',
+  valueLabel: '0',
   label: 'Focus Points',
   deltaLabel: '—',
   deltaPositive: true,
   progressPercent: 0,
+  emptyMessage: 'Abre Kivo para sincronizar',
   deepLink: WIDGET_DEEP_LINK_REPORT,
 };
 
@@ -70,7 +73,7 @@ export function KivoFocusPointsWidgetView({
 
       <FlexWidget style={{ flexDirection: 'column', marginTop: 8 }}>
         <TextWidget
-          text={enabled ? data.valueLabel : '—'}
+          text={enabled ? data.valueLabel : '0'}
           style={{ fontSize: 28, fontWeight: '700', color: WIDGET_TEXT }}
           maxLines={1}
         />
@@ -79,7 +82,7 @@ export function KivoFocusPointsWidgetView({
           style={{ fontSize: 13, color: WIDGET_TEXT, marginTop: 2 }}
           maxLines={1}
         />
-        {!enabled && data.emptyMessage ? (
+        {data.emptyMessage && (!enabled || data.valueLabel === '0' || data.valueLabel === '—') ? (
           <TextWidget
             text={data.emptyMessage}
             style={{ fontSize: 10, color: WIDGET_TEXT_MUTED, marginTop: 4 }}

@@ -68,10 +68,10 @@ export function FocusSessionView({ onClose }: FocusSessionViewProps) {
             </View>
             <View>
               <Text className="text-[15px] font-semibold" style={{ color: APP_ACCENT }}>
-                Focus Session
+                Sesión Focus
               </Text>
               <Text className="text-[12px]" style={{ color: APP_TEXT_MUTED }}>
-                Kivo Productivity
+                Productividad Kivo
               </Text>
             </View>
           </View>
@@ -82,7 +82,7 @@ export function FocusSessionView({ onClose }: FocusSessionViewProps) {
             <Text
               className="mt-0.5 text-[11px] font-bold uppercase tracking-wide"
               style={{ color: TEAL }}>
-              Ongoing
+              En curso
             </Text>
           </View>
         </View>
@@ -102,7 +102,7 @@ export function FocusSessionView({ onClose }: FocusSessionViewProps) {
                 }}
               />
             </View>
-            <Text className="text-[13px] font-medium text-white">{progressPercent}% Done</Text>
+            <Text className="text-[13px] font-medium text-white">{progressPercent}% hecho</Text>
           </View>
 
           <Text className="mt-4 text-[13px]" style={{ color: APP_TEXT_MUTED }}>
@@ -150,9 +150,7 @@ export function FocusSessionView({ onClose }: FocusSessionViewProps) {
             onPress={() => void handleStop()}
             className="flex-1 items-center rounded-2xl border py-3 active:opacity-80"
             style={{ borderColor: APP_BORDER, backgroundColor: APP_SURFACE }}>
-            <Text className="text-[13px] font-semibold" style={{ color: APP_TEXT_MUTED }}>
-              Desactivar
-            </Text>
+            <Text className="text-[13px] font-semibold text-white">Desactivar</Text>
           </Pressable>
         </View>
 

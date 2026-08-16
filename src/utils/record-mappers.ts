@@ -17,7 +17,13 @@ function readStringArray(data: Record<string, unknown>, key: string): string[] {
 
 export function toScheduledAt(date: string | null | undefined): string | null {
   if (!date) return null;
-  return date.slice(0, 10);
+  const trimmed = date.trim();
+  // Date-only values have no timezone; keep the calendar day as stored.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return trimmed.slice(0, 10);
+  // TIMESTAMPTZ comes back as UTC; convert to the device's local calendar day.
+  return toIsoDate(parsed);
 }
 
 export function formatTimeLabel(date: string | null | undefined): string {

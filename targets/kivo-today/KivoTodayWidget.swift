@@ -109,7 +109,7 @@ struct KivoTodayWidget: Widget {
   }
 }
 
-// MARK: - Prioridad actual
+// MARK: - No olvides de
 
 struct ProgressRing: View {
   let percent: Int
@@ -127,7 +127,7 @@ struct ProgressRing: View {
         .font(.system(size: 12, weight: .bold))
         .foregroundStyle(KivoWidgetTheme.text)
     }
-    .frame(width: 56, height: 56)
+    .frame(width: 52, height: 52)
   }
 }
 
@@ -135,36 +135,55 @@ struct KivoPriorityWidgetView: View {
   let payload: WidgetPriorityPayload
   let enabled: Bool
 
+  private var listItems: [WidgetPriorityItem] {
+    if let items = payload.items, !items.isEmpty {
+      return items
+    }
+    if payload.title != "Nada urgente" && payload.title != "Tu prioridad" && !payload.title.isEmpty {
+      return [WidgetPriorityItem(id: "primary", title: payload.title, dueLabel: payload.dueLabel)]
+    }
+    return []
+  }
+
   var body: some View {
-    HStack(alignment: .center, spacing: 12) {
-      VStack(alignment: .leading, spacing: 8) {
-        HStack(spacing: 8) {
+    HStack(alignment: .center, spacing: 10) {
+      VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 7) {
           Circle()
             .fill(KivoWidgetTheme.accent)
-            .frame(width: 8, height: 8)
+            .frame(width: 7, height: 7)
           Text(payload.label)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(KivoWidgetTheme.accent)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(KivoWidgetTheme.muted)
             .lineLimit(1)
         }
 
-        Text(payload.title)
-          .font(.system(size: 18, weight: .bold))
-          .foregroundStyle(KivoWidgetTheme.text)
-          .lineLimit(2)
-
-        Text(enabled ? payload.dueLabel : (payload.emptyMessage ?? payload.dueLabel))
-          .font(.system(size: 12))
-          .foregroundStyle(KivoWidgetTheme.muted)
-          .lineLimit(1)
-
-        Spacer(minLength: 0)
+        if listItems.isEmpty {
+          Text(enabled ? (payload.emptyMessage ?? payload.dueLabel) : (payload.emptyMessage ?? payload.dueLabel))
+            .font(.system(size: 14, weight: .bold))
+            .foregroundStyle(KivoWidgetTheme.text)
+            .lineLimit(2)
+        } else {
+          ForEach(listItems.prefix(4), id: \.id) { item in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.title)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(KivoWidgetTheme.text)
+                .lineLimit(1)
+              Text(item.dueLabel)
+                .font(.system(size: 11))
+                .foregroundStyle(KivoWidgetTheme.muted)
+                .lineLimit(1)
+            }
+          }
+        }
       }
 
       ProgressRing(percent: payload.progressPercent)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .padding(16)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
     .widgetURL(URL(string: payload.deepLink))
   }
 }
@@ -179,13 +198,13 @@ struct KivoPriorityWidget: Widget {
           KivoWidgetTheme.surface
         }
     }
-    .configurationDisplayName("Prioridad actual")
+    .configurationDisplayName("No olvides de")
     .description("Tu tarea Focus del día con avance.")
-    .supportedFamilies([.systemMedium, .systemLarge])
+    .supportedFamilies([.systemMedium])
   }
 }
 
-// MARK: - Quick Capture
+// MARK: - Captura rápida
 
 struct KivoCaptureWidgetView: View {
   let payload: WidgetCapturePayload
@@ -225,13 +244,13 @@ struct KivoCaptureWidget: Widget {
           KivoWidgetTheme.surface
         }
     }
-    .configurationDisplayName("Quick Capture")
-    .description("Abre la captura de voz al instante.")
+    .configurationDisplayName("Captura rápida")
+    .description("Abre el Asistente y empieza a grabar voz.")
     .supportedFamilies([.systemSmall])
   }
 }
 
-// MARK: - Focus Points
+// MARK: - Focus Points (retired — kept for App Group payload decode compatibility)
 
 struct KivoFocusPointsWidgetView: View {
   let payload: WidgetFocusPointsPayload

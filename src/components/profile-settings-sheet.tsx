@@ -18,6 +18,7 @@ import {
   AppLockMethodPicker,
 } from '@/components/app-lock-method-picker';
 import { AppLockDelayPicker } from '@/components/app-lock-delay-picker';
+import { DevicePermissionsPanel } from '@/components/device-permissions-panel';
 import { FocusSettingsPanel } from '@/components/focus/focus-settings-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/text-input';
@@ -36,9 +37,11 @@ import {
   type ReminderAlertVibrationId,
 } from '@/services/reminders/reminder-alert-presets';
 import { useAppLockMethodSetup } from '@/hooks/use-app-lock-method-setup';
+import { showPermissionResultAlert } from '@/services/permissions/show-permission-alert';
 import {
   cancelAppReminders,
-  requestNotificationPermissions,
+  canScheduleLocalNotifications,
+  requestNotificationPermissionResult,
 } from '@/services/reminders/reminder-notifications';
 import { uploadAvatar } from '@/services/profiles/avatar-upload';
 import { changePasswordRequest } from '@/services/auth/auth-api';
@@ -48,6 +51,7 @@ export type ProfileSheetType =
   | 'personal'
   | 'security'
   | 'notifications'
+  | 'permissions'
   | 'subscription'
   | 'focus'
   | null;
@@ -55,9 +59,14 @@ export type ProfileSheetType =
 type ProfileSettingsSheetProps = {
   type: ProfileSheetType;
   onClose: () => void;
+  onOpenWidgetSetup?: () => void;
 };
 
-export function ProfileSettingsSheet({ type, onClose }: ProfileSettingsSheetProps) {
+export function ProfileSettingsSheet({
+  type,
+  onClose,
+  onOpenWidgetSetup,
+}: ProfileSettingsSheetProps) {
   if (!type) return null;
 
   return (
@@ -78,6 +87,14 @@ export function ProfileSettingsSheet({ type, onClose }: ProfileSettingsSheetProp
           {type === 'personal' ? <PersonalDataForm onClose={onClose} /> : null}
           {type === 'security' ? <SecuritySettings /> : null}
           {type === 'notifications' ? <NotificationSettings /> : null}
+          {type === 'permissions' ? (
+            <DevicePermissionsPanel
+              onOpenWidgetSetup={() => {
+                onClose();
+                onOpenWidgetSetup?.();
+              }}
+            />
+          ) : null}
           {type === 'subscription' ? <SubscriptionSettings /> : null}
           {type === 'focus' ? <FocusSettingsPanel /> : null}
         </ScrollView>
@@ -90,6 +107,7 @@ const titles: Record<Exclude<ProfileSheetType, null>, string> = {
   personal: 'Datos personales',
   security: 'Seguridad',
   notifications: 'Notificaciones',
+  permissions: 'Permisos del dispositivo',
   subscription: 'Suscripción',
   focus: 'Modo Focus',
 };
@@ -318,8 +336,8 @@ function NotificationSettings() {
     setReminderAlertVibration,
   } = useUserPreferences();
 
-  const remindersAvailable = pushNotifications;
-  const [isSendingTest, setIsSendingTest] = useState(false);
+  const nativeAvailable = canScheduleLocalNotifications();
+  const remindersAvailable = pushNotifications && nativeAvailable;
 
   async function handlePushChange(value: boolean) {
     if (!value) {
@@ -329,14 +347,14 @@ function NotificationSettings() {
       return;
     }
 
-    const granted = await requestNotificationPermissions();
-    if (!granted) {
+    const result = await requestNotificationPermissionResult();
+    if (result.status !== 'granted') {
       await setPushNotifications(false);
       await setReminderNotifications(false);
-      showAppAlert(
-        'Permiso requerido',
-        'Sin acceso a notificaciones del celular, Kivo no puede enviarte alertas. Actívalas en la configuración del sistema.',
-      );
+      showPermissionResultAlert(result, {
+        deniedMessage:
+          'Sin acceso a notificaciones del celular, Kivo no puede enviarte alertas. Actívalas en la configuración del sistema.',
+      });
       return;
     }
 
@@ -349,13 +367,21 @@ function NotificationSettings() {
       return;
     }
 
+    if (!nativeAvailable) {
+      showPermissionResultAlert(
+        { status: 'unavailable', reason: 'expo_go' },
+        { unavailableTitle: 'No disponible' },
+      );
+      return;
+    }
+
     if (!pushNotifications) {
-      const granted = await requestNotificationPermissions();
-      if (!granted) {
-        showAppAlert(
-          'Permiso requerido',
-          'Primero debes permitir notificaciones del celular para usar recordatorios inteligentes.',
-        );
+      const result = await requestNotificationPermissionResult();
+      if (result.status !== 'granted') {
+        showPermissionResultAlert(result, {
+          deniedMessage:
+            'Primero debes permitir notificaciones del celular para usar recordatorios inteligentes.',
+        });
         return;
       }
       await setPushNotifications(true);
@@ -364,55 +390,37 @@ function NotificationSettings() {
     await setReminderNotifications(true);
   }
 
-  async function handleSendTestAlerts() {
-    setIsSendingTest(true);
-    try {
-      const { canScheduleLocalNotifications, presentTestKivoAlerts } = await import(
-        '@/services/reminders/reminder-notifications'
-      );
-      if (!canScheduleLocalNotifications()) {
-        showAppAlert(
-          'Build nativo requerido',
-          'Las notificaciones del sistema solo funcionan en APK / dev client (EXPO_PUBLIC_NATIVE_BUILD=1), no en Expo Go.',
-        );
-        return;
-      }
-      const ok = await presentTestKivoAlerts(reminderAlertStyle, {
-        soundId: reminderAlertSound,
-        vibrationId: reminderAlertVibration,
-      });
-      if (!ok) {
-        showAppAlert(
-          'Permiso requerido',
-          'Activa las notificaciones del celular para probar las alertas.',
-        );
-        return;
-      }
-      showAppAlert(
-        'Alertas de prueba',
-        'Se programó una alarma crítica a pantalla completa (~5 s) y un resumen del asistente. Bloquea el teléfono para probarla.',
-      );
-    } finally {
-      setIsSendingTest(false);
-    }
-  }
-
   return (
     <View className="gap-3">
+      {!nativeAvailable ? (
+        <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
+          <Text className="text-[13px] font-semibold text-foreground dark:text-foreground-dark">
+            No disponible aquí
+          </Text>
+          <Text className="mt-1 text-xs leading-5 text-subtle dark:text-subtle-dark">
+            Las notificaciones del sistema funcionan en la app Kivo instalada. En este entorno solo
+            puedes ajustar preferencias; se aplicarán en el dispositivo.
+          </Text>
+        </View>
+      ) : null}
       <SettingToggle
         label="Notificaciones del celular"
         description="Permite que Kivo muestre alertas y recordatorios locales en el teléfono"
-        value={pushNotifications}
+        value={pushNotifications && nativeAvailable}
+        disabled={!nativeAvailable}
         onValueChange={handlePushChange}
       />
       <SettingToggle
         label="Recordatorios inteligentes"
         description={
-          remindersAvailable
-            ? 'Alarmas a la hora exacta (pantalla completa) y aviso matutino a las 5:00 am'
-            : 'Requiere permisos de notificaciones del celular'
+          !nativeAvailable
+            ? 'Disponible en la app instalada'
+            : remindersAvailable
+              ? 'Alarmas a la hora exacta (pantalla completa) y aviso matutino a las 5:00 am'
+              : 'Requiere permisos de notificaciones del celular'
         }
         value={reminderNotifications && remindersAvailable}
+        disabled={!nativeAvailable}
         onValueChange={handleReminderChange}
       />
       {reminderNotifications && remindersAvailable ? (
@@ -445,22 +453,10 @@ function NotificationSettings() {
       <View className="rounded-2xl bg-canvas p-4 dark:bg-canvas-dark">
         <Text className="text-xs leading-5 text-subtle dark:text-subtle-dark">
           Hora exacta: alarma a pantalla completa. Matutino (5:00 am): resumen del día y avisos
-          suaves de tareas sin hora. Si niegas el permiso, las notificaciones se desactivan.
-          Requiere APK (no Expo Go).
+          suaves de tareas sin hora. Gestiona permisos del sistema en Perfil → Permisos del
+          dispositivo.
         </Text>
       </View>
-      {__DEV__ ? (
-        <Pressable
-          accessibilityRole="button"
-          disabled={isSendingTest}
-          onPress={() => void handleSendTestAlerts()}
-          className="min-h-[48px] items-center justify-center rounded-2xl bg-canvas active:opacity-90 dark:bg-canvas-dark"
-          style={{ opacity: isSendingTest ? 0.6 : 1 }}>
-          <Text className="text-sm font-semibold text-foreground dark:text-foreground-dark">
-            {isSendingTest ? 'Enviando…' : 'Enviar alertas de prueba (DEV)'}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -580,8 +576,8 @@ function ReminderAlertSoundPicker({ value, enabled, onChange }: ReminderAlertSou
       const { canUseSystemRingtonePicker } = await import('@/services/reminders/alert-sound-uri');
       if (!canUseSystemRingtonePicker()) {
         showAppAlert(
-          'Build nativo requerido',
-          'Elegir un tono del sistema solo está disponible en la APK / dev client, no en Expo Go.',
+          'No disponible',
+          'Elegir un tono del sistema solo está disponible en la app instalada en el teléfono.',
         );
         return;
       }
@@ -861,14 +857,18 @@ function SettingToggle({
   description,
   value,
   onValueChange,
+  disabled = false,
 }: {
   label: string;
   description: string;
   value: boolean;
   onValueChange: (value: boolean) => Promise<void>;
+  disabled?: boolean;
 }) {
   return (
-    <View className="flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark">
+    <View
+      className="flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-4 dark:border-border-dark dark:bg-surface-dark"
+      style={{ opacity: disabled ? 0.55 : 1 }}>
       <View className="flex-1 gap-1">
         <Text className="text-[15px] font-semibold text-foreground dark:text-foreground-dark">
           {label}
@@ -877,7 +877,11 @@ function SettingToggle({
       </View>
       <Switch
         value={value}
-        onValueChange={onValueChange}
+        disabled={disabled}
+        onValueChange={(next) => {
+          if (disabled) return;
+          void onValueChange(next);
+        }}
         trackColor={{ false: '#E7DFF5', true: '#A78BFA' }}
         thumbColor={value ? '#7C3AED' : '#FFFFFF'}
       />

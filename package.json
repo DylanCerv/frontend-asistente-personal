@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
-    "@expo/ui": "~0.2.0-beta.9",
     "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
@@ -15,6 +14,7 @@
     "expo-asset": "~12.0.13",
     "expo-audio": "~1.1.1",
     "expo-auth-session": "~7.0.11",
+    "expo-build-properties": "~1.0.10",
     "expo-calendar": "~15.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",
@@ -64,11 +64,12 @@
     "typescript": "~5.9.2"
   },
   "scripts": {
-    "dev": "expo start",
-    "start": "expo start",
+    "dev": "expo start --go",
+    "start": "expo start --go",
+    "start:native": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo start --go --android",
+    "ios": "expo start --go --ios",
     "web": "expo start --web",
     "lint": "expo lint"
   },

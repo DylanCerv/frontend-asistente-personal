@@ -14,7 +14,6 @@ import {
 import { useAssistant } from '@/context/assistant-context';
 import { useDeviceCalendar } from '@/context/device-calendar-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
-import { showAppAlert } from '@/services/app-dialog';
 import {
   buildKivoAlerts,
   snoozeInAppAlert,
@@ -22,11 +21,8 @@ import {
   type KivoAssistantAlert,
   type KivoCriticalAlert,
 } from '@/services/reminders/kivo-alerts';
-import {
-  canScheduleLocalNotifications,
-  presentTestKivoAlerts,
-  snoozeReminderNotification,
-} from '@/services/reminders/reminder-notifications';
+import { snoozeReminderNotification } from '@/services/reminders/reminder-notifications';
+import { CRITICAL_SNOOZE_MINUTES } from '@/services/reminders/critical-alarm-notifications';
 import { todayIso } from '@/utils/date-utils';
 
 const PEACH = '#F8A49B';
@@ -99,7 +95,7 @@ function CriticalCard({
             className="min-h-[44px] flex-1 items-center justify-center rounded-2xl active:opacity-90"
             style={{ backgroundColor: APP_SURFACE_SOFT, borderWidth: 1, borderColor: APP_BORDER }}>
             <Text className="text-[14px] font-semibold" style={{ color: APP_TEXT_MUTED }}>
-              Posponer 10 min
+              Posponer 5 min
             </Text>
           </Pressable>
         </View>
@@ -188,7 +184,6 @@ export function KivoAlertsSheet({ visible, onClose }: KivoAlertsSheetProps) {
     reminderAlertVibration,
   } = useUserPreferences();
   const [snoozeTick, setSnoozeTick] = useState(0);
-  const [isSendingTest, setIsSendingTest] = useState(false);
 
   const deviceMeetingsToday = useMemo(
     () => deviceCalendarEvents.filter((event) => event.scheduledAt === todayIso()).length,
@@ -219,7 +214,7 @@ export function KivoAlertsSheet({ visible, onClose }: KivoAlertsSheetProps) {
   }
 
   async function handleSnooze(alert: KivoCriticalAlert) {
-    snoozeInAppAlert(alert.recordId, 10);
+    snoozeInAppAlert(alert.recordId, CRITICAL_SNOOZE_MINUTES);
     setSnoozeTick((value) => value + 1);
     await snoozeReminderNotification(
       {
@@ -229,7 +224,7 @@ export function KivoAlertsSheet({ visible, onClose }: KivoAlertsSheetProps) {
         kind: 'critical',
       },
       reminderAlertStyle,
-      10,
+      CRITICAL_SNOOZE_MINUTES,
       {
         soundId: reminderAlertSound,
         vibrationId: reminderAlertVibration,
@@ -240,37 +235,6 @@ export function KivoAlertsSheet({ visible, onClose }: KivoAlertsSheetProps) {
   function handleOpenBriefing() {
     onClose();
     router.push('/');
-  }
-
-  async function handleSendTestAlerts() {
-    setIsSendingTest(true);
-    try {
-      onClose();
-      router.push({
-        pathname: '/critical-alarm',
-        params: {
-          recordId: 'test-critical',
-          title: 'Enviar propuesta a Carlos',
-        },
-      });
-
-      if (!canScheduleLocalNotifications()) {
-        return;
-      }
-
-      const ok = await presentTestKivoAlerts(reminderAlertStyle, {
-        soundId: reminderAlertSound,
-        vibrationId: reminderAlertVibration,
-      });
-      if (!ok) {
-        showAppAlert(
-          'Permiso requerido',
-          'Activa las notificaciones del celular para programar la alarma a pantalla completa (~5 s).',
-        );
-      }
-    } finally {
-      setIsSendingTest(false);
-    }
   }
 
   const criticalCount = alerts.filter((item) => item.kind === 'critical').length;
@@ -288,19 +252,6 @@ export function KivoAlertsSheet({ visible, onClose }: KivoAlertsSheetProps) {
               className="h-10 w-10 items-center justify-center rounded-full active:opacity-80"
               style={{ backgroundColor: APP_SURFACE_SOFT, borderWidth: 1, borderColor: APP_BORDER }}>
               <Ionicons name="close" size={18} color={APP_TEXT_MUTED} />
-            </Pressable>
-          </View>
-
-          <View className="mb-3 flex-row items-center justify-between px-5">
-            <Text
-              className="text-[11px] font-semibold uppercase tracking-[1.4px]"
-              style={{ color: APP_TEXT_MUTED }}>
-              Alertas Kivo
-            </Text>
-            <Pressable accessibilityRole="button" onPress={onClose} className="active:opacity-80">
-              <Text className="text-[13px] font-semibold" style={{ color: '#C4B5FD' }}>
-                Cerrar
-              </Text>
             </Pressable>
           </View>
 
@@ -341,24 +292,6 @@ export function KivoAlertsSheet({ visible, onClose }: KivoAlertsSheetProps) {
                 {criticalCount}{' '}
                 {criticalCount === 1 ? 'alerta crítica activa' : 'alertas críticas activas'}
               </Text>
-            ) : null}
-
-            {__DEV__ ? (
-              <Pressable
-                accessibilityRole="button"
-                disabled={isSendingTest}
-                onPress={() => void handleSendTestAlerts()}
-                className="mt-2 min-h-[48px] items-center justify-center rounded-2xl active:opacity-90"
-                style={{
-                  backgroundColor: APP_SURFACE_SOFT,
-                  borderWidth: 1,
-                  borderColor: APP_BORDER,
-                  opacity: isSendingTest ? 0.6 : 1,
-                }}>
-                <Text className="text-[14px] font-semibold text-white">
-                  {isSendingTest ? 'Enviando…' : 'Enviar alertas de prueba (DEV)'}
-                </Text>
-              </Pressable>
             ) : null}
           </ScrollView>
         </View>

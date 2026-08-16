@@ -24,10 +24,17 @@ struct WidgetTodayPayload: Codable {
   let deepLink: String
 }
 
+struct WidgetPriorityItem: Codable {
+  let id: String
+  let title: String
+  let dueLabel: String
+}
+
 struct WidgetPriorityPayload: Codable {
   let label: String
   let title: String
   let dueLabel: String
+  let items: [WidgetPriorityItem]?
   let progressPercent: Int
   let emptyMessage: String?
   let deepLink: String
@@ -105,17 +112,18 @@ enum WidgetPayloadStore {
       signedIn: today.enabled,
       today: today,
       priority: WidgetPriorityPayload(
-        label: "PRIORIDAD ACTUAL",
+        label: "No olvides de",
         title: today.headline,
         dueLabel: today.emptyMessage ?? "",
+        items: nil,
         progressPercent: 0,
         emptyMessage: today.emptyMessage,
         deepLink: "kivo:///"
       ),
       capture: WidgetCapturePayload(
-        title: "Quick Capture",
-        subtitle: "TAP TO RECORD",
-        deepLink: "kivo://capture"
+        title: "Captura rápida",
+        subtitle: "TOCA PARA GRABAR",
+        deepLink: "kivo://assistant?autoRecord=1"
       ),
       focusPoints: WidgetFocusPointsPayload(
         valueLabel: "—",
@@ -148,17 +156,18 @@ enum WidgetPayloadStore {
         deepLink: "kivo://agenda"
       ),
       priority: WidgetPriorityPayload(
-        label: "PRIORIDAD ACTUAL",
+        label: "No olvides de",
         title: "Kivo",
         dueLabel: "Abre Kivo para sincronizar",
+        items: nil,
         progressPercent: 0,
         emptyMessage: "Abre Kivo para sincronizar",
         deepLink: "kivo:///"
       ),
       capture: WidgetCapturePayload(
-        title: "Quick Capture",
-        subtitle: "TAP TO RECORD",
-        deepLink: "kivo://capture"
+        title: "Captura rápida",
+        subtitle: "TOCA PARA GRABAR",
+        deepLink: "kivo://assistant?autoRecord=1"
       ),
       focusPoints: WidgetFocusPointsPayload(
         valueLabel: "—",

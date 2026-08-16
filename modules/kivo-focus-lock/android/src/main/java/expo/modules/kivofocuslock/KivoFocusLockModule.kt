@@ -104,10 +104,26 @@ class KivoFocusLockModule : Module() {
   }
 
   private fun openNotificationPolicySettings() {
+    val context = appContextSafe()
+    // Prefer the per-app DND access screen when available (API 30+).
+    // Use the action string: Settings.ACTION_NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS
+    // is not always on the compile classpath for Expo modules.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      try {
+        val detail = Intent("android.settings.NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS").apply {
+          data = Uri.parse("package:${context.packageName}")
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(detail)
+        return
+      } catch (_: Exception) {
+        // Fall through to the full access list.
+      }
+    }
     val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).apply {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
-    appContextSafe().startActivity(intent)
+    context.startActivity(intent)
   }
 
   private fun getInterruptionFilter(): Int {
@@ -120,6 +136,17 @@ class KivoFocusLockModule : Module() {
     if (!nm.isNotificationPolicyAccessGranted) return false
     nm.setInterruptionFilter(filter)
     return true
+  }
+
+  /** Turns off Do Not Disturb mode (keeps the access permission). */
+  private fun clearFocusInterruptionFilter() {
+    try {
+      val nm = appContextSafe().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      if (!nm.isNotificationPolicyAccessGranted) return
+      nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+    } catch (_: Exception) {
+      // Ignore — JS restoreFocusDnd is the fallback.
+    }
   }
 
   private fun canDrawOverlays(): Boolean {
@@ -175,7 +202,7 @@ class KivoFocusLockModule : Module() {
     }
 
     val header = TextView(context).apply {
-      text = "Focus Session"
+      text = "Sesión Focus"
       setTextColor(Color.parseColor("#C4B5FD"))
       setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
       setTypeface(typeface, Typeface.BOLD)
@@ -216,6 +243,10 @@ class KivoFocusLockModule : Module() {
           marginEnd = dp(6f)
         }
         setOnClickListener {
+          // Exit Focus quiet mode immediately in native (JS may be suspended).
+          if (action == "complete" || action == "stop") {
+            clearFocusInterruptionFilter()
+          }
           sendEvent("onOverlayAction", mapOf("action" to action))
         }
       }

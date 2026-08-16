@@ -4,6 +4,14 @@ import { Platform } from 'react-native';
 
 import { isNativeBuildEnabled } from '@/config/native-build';
 import {
+  deniedResult,
+  getNativeFeatureUnavailableReason,
+  grantedResult,
+  isPermissionGranted,
+  unavailableResult,
+  type PermissionResult,
+} from '@/services/permissions/permission-result';
+import {
   buildCriticalAlarmDeepLink,
   canScheduleCriticalAlarms,
   cancelAllCriticalAlarms,
@@ -37,6 +45,8 @@ import {
   type ReminderScheduleItem,
 } from '@/services/reminders/reminder-rules';
 import type { MemoryRecord } from '@/types/record';
+
+export type { PermissionResult };
 
 export {
   buildCriticalAlarmDeepLink,
@@ -136,12 +146,12 @@ async function ensureNotificationCategories(Notifications: NotificationsModule):
     },
     {
       identifier: ACTION_SNOOZE,
-      buttonTitle: 'Posponer 10 min',
+      buttonTitle: 'Posponer 5 min',
       options: { opensAppToForeground: false },
     },
     {
       identifier: ACTION_TALK,
-      buttonTitle: 'Hablar con Kivo',
+      buttonTitle: 'Hablar',
       options: { opensAppToForeground: true },
     },
   ]);
@@ -161,54 +171,66 @@ async function getNotificationsModule(): Promise<NotificationsModule | null> {
   if (!canUseLocalNotifications()) return null;
 
   if (!notificationsModulePromise) {
-    notificationsModulePromise = import('expo-notifications').then(async (Notifications) => {
-      if (!notificationHandlerConfigured) {
-        Notifications.setNotificationHandler({
-          handleNotification: async (notification) => {
-            const alertStyle = parseReminderAlertStyle(
-              notification.request.content.data?.alertStyle,
-            );
-            const alertLevel = notification.request.content.data?.alertLevel as
-              | ReminderAlertLevel
-              | undefined;
-            const kind = notification.request.content.data?.kind as
-              | ReminderNotificationKind
-              | undefined;
+    notificationsModulePromise = import('expo-notifications')
+      .then(async (Notifications) => {
+        if (!notificationHandlerConfigured) {
+          Notifications.setNotificationHandler({
+            handleNotification: async (notification) => {
+              const alertStyle = parseReminderAlertStyle(
+                notification.request.content.data?.alertStyle,
+              );
+              const alertLevel = notification.request.content.data?.alertLevel as
+                | ReminderAlertLevel
+                | undefined;
+              const kind = notification.request.content.data?.kind as
+                | ReminderNotificationKind
+                | undefined;
 
-            return {
-              shouldShowAlert: true,
-              shouldPlaySound: shouldPlaySound(alertStyle, alertLevel ?? 'notification'),
-              shouldSetBadge: false,
-              shouldShowBanner: kind !== 'critical',
-              shouldShowList: true,
-            };
-          },
-        });
-        notificationHandlerConfigured = true;
-      }
+              return {
+                shouldShowAlert: true,
+                shouldPlaySound: shouldPlaySound(alertStyle, alertLevel ?? 'notification'),
+                shouldSetBadge: false,
+                shouldShowBanner: kind !== 'critical',
+                shouldShowList: true,
+              };
+            },
+          });
+          notificationHandlerConfigured = true;
+        }
 
-      await ensureNotificationCategories(Notifications);
-      return Notifications;
-    });
+        await ensureNotificationCategories(Notifications);
+        return Notifications;
+      })
+      .catch(() => null);
   }
 
   return notificationsModulePromise;
 }
 
-export async function checkNotificationPermissions(): Promise<boolean> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications) return false;
-
-  const current = await Notifications.getPermissionsAsync();
-  return current.granted ?? false;
+export function getNotificationPermissionUnavailableReason() {
+  return getNativeFeatureUnavailableReason();
 }
 
-export async function requestNotificationPermissions(): Promise<boolean> {
+export async function checkNotificationPermissionResult(): Promise<PermissionResult> {
+  const unavailable = getNativeFeatureUnavailableReason();
+  if (unavailable) return unavailableResult(unavailable);
+
   const Notifications = await getNotificationsModule();
-  if (!Notifications) return false;
+  if (!Notifications) return unavailableResult('missing_native_flag');
 
   const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
+  return current.granted ? grantedResult() : deniedResult();
+}
+
+export async function requestNotificationPermissionResult(): Promise<PermissionResult> {
+  const unavailable = getNativeFeatureUnavailableReason();
+  if (unavailable) return unavailableResult(unavailable);
+
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) return unavailableResult('missing_native_flag');
+
+  const current = await Notifications.getPermissionsAsync();
+  if (current.granted) return grantedResult();
 
   const requested = await Notifications.requestPermissionsAsync({
     ios: {
@@ -217,7 +239,15 @@ export async function requestNotificationPermissions(): Promise<boolean> {
       allowSound: true,
     },
   });
-  return requested.granted ?? false;
+  return requested.granted ? grantedResult() : deniedResult();
+}
+
+export async function checkNotificationPermissions(): Promise<boolean> {
+  return isPermissionGranted(await checkNotificationPermissionResult());
+}
+
+export async function requestNotificationPermissions(): Promise<boolean> {
+  return isPermissionGranted(await requestNotificationPermissionResult());
 }
 
 /** @deprecated Use requestNotificationPermissions */
@@ -297,6 +327,26 @@ function resolveCategoryId(kind: ReminderNotificationKind): string | undefined {
   return undefined;
 }
 
+function buildDateTrigger(
+  Notifications: NotificationsModule,
+  date: Date,
+  item: ReminderScheduleItem,
+  media: AlertMediaOptions = {},
+) {
+  if (Platform.OS === 'android') {
+    return {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date,
+      channelId: resolveAndroidChannelId(item.kind, item.alertLevel, media),
+    } as const;
+  }
+
+  return {
+    type: Notifications.SchedulableTriggerInputTypes.DATE,
+    date,
+  } as const;
+}
+
 function buildNotificationContent(
   Notifications: NotificationsModule,
   item: ReminderScheduleItem,
@@ -333,7 +383,6 @@ function buildNotificationContent(
     },
     ...(Platform.OS === 'android'
       ? {
-          channelId: resolveAndroidChannelId(item.kind, item.alertLevel, media),
           priority: isAlarm
             ? Notifications.AndroidNotificationPriority.MAX
             : Notifications.AndroidNotificationPriority.DEFAULT,
@@ -417,10 +466,7 @@ export async function syncReminderNotifications(
       Notifications.scheduleNotificationAsync({
         identifier: item.id,
         content: buildNotificationContent(Notifications, item, alertStyle, media),
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: item.triggerAt,
-        },
+        trigger: buildDateTrigger(Notifications, item.triggerAt, item, media),
       }),
     ),
   );
@@ -485,10 +531,7 @@ export async function snoozeReminderNotification(
   await Notifications.scheduleNotificationAsync({
     identifier: scheduleItem.id,
     content: buildNotificationContent(Notifications, scheduleItem, alertStyle, normalized),
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: scheduleItem.triggerAt,
-    },
+    trigger: buildDateTrigger(Notifications, scheduleItem.triggerAt, scheduleItem, normalized),
   });
 }
 
@@ -533,20 +576,14 @@ export async function presentTestKivoAlerts(
     await Notifications.scheduleNotificationAsync({
       identifier: criticalItem.id,
       content: buildNotificationContent(Notifications, criticalItem, alertStyle, normalized),
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: criticalItem.triggerAt,
-      },
+      trigger: buildDateTrigger(Notifications, criticalItem.triggerAt, criticalItem, normalized),
     });
   }
 
   await Notifications.scheduleNotificationAsync({
     identifier: summary.id,
     content: buildNotificationContent(Notifications, summary, alertStyle, normalized),
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: summary.triggerAt,
-    },
+    trigger: buildDateTrigger(Notifications, summary.triggerAt, summary, normalized),
   });
 
   return true;
