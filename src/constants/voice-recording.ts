@@ -33,3 +33,13 @@ export const LIGHT_VOICE_UPLOAD = {
   fileName: 'voice.m4a',
   mimeType: 'audio/m4a',
 } as const;
+
+/** Reject accidental taps / empty clips before upload or Whisper processing. */
+export const MIN_VOICE_RECORDING_MS = 1000;
+
+export const SHORT_VOICE_RECORDING_MESSAGE =
+  'El audio es muy corto. Habla al menos 1 segundo e intenta de nuevo.';
+
+export function isVoiceRecordingTooShort(durationMs: number): boolean {
+  return !Number.isFinite(durationMs) || durationMs < MIN_VOICE_RECORDING_MS;
+}

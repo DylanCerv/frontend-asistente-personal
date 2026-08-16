@@ -5,17 +5,31 @@ import {
   type RecordingOptions,
 } from 'expo-audio';
 
+function isTransientAudioSessionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return (
+    /keep awake/i.test(message) ||
+    /current activity is no longer available/i.test(message) ||
+    /activity.*destroyed/i.test(message)
+  );
+}
+
 export async function ensureMicrophonePermission(): Promise<boolean> {
   const permission = await requestRecordingPermissionsAsync();
   return permission.granted;
 }
 
 export async function configureRecordingAudioMode(): Promise<void> {
-  await setAudioModeAsync({
-    allowsRecording: true,
-    playsInSilentMode: true,
-    interruptionMode: 'duckOthers',
-  });
+  try {
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
+      interruptionMode: 'duckOthers',
+    });
+  } catch (error) {
+    // Expo Go on Android can reject briefly while the activity is resuming.
+    if (!isTransientAudioSessionError(error)) throw error;
+  }
 }
 
 function readRecorderStatus(recorder: AudioRecorder) {
@@ -38,6 +52,16 @@ export async function releaseAudioRecorderSession(recorder: AudioRecorder): Prom
     await recorder.stop();
   } catch {
     // Session may already be idle or released.
+  }
+
+  try {
+    // Best-effort reset so Expo Go does not leave keep-awake pending after close.
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+    });
+  } catch {
+    // Ignore mode reset failures on teardown.
   }
 }
 
@@ -62,8 +86,19 @@ export async function beginAudioRecordingSession(
   }
 
   if (!status.canRecord) {
-    await recorder.prepareToRecordAsync(options);
+    try {
+      await recorder.prepareToRecordAsync(options);
+    } catch (error) {
+      if (!isTransientAudioSessionError(error)) throw error;
+      // Retry once after a short delay when Expo Go is still waking the activity.
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      await recorder.prepareToRecordAsync(options);
+    }
   }
 
-  recorder.record();
+  try {
+    recorder.record();
+  } catch (error) {
+    if (!isTransientAudioSessionError(error)) throw error;
+  }
 }

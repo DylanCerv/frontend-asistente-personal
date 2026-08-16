@@ -5,6 +5,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  isVoiceRecordingTooShort,
+  SHORT_VOICE_RECORDING_MESSAGE,
+} from '@/constants/voice-recording';
+import {
   beginAudioRecordingSession,
   configureRecordingAudioMode,
   ensureMicrophonePermission,
@@ -20,6 +24,7 @@ export function useVoiceRecorder() {
   const [error, setError] = useState<string | null>(null);
   const isStartingRef = useRef(false);
   const stateRef = useRef<RecorderState>(state);
+  const recordingStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -32,9 +37,14 @@ export function useVoiceRecorder() {
   }, [recorder]);
 
   const reset = useCallback(() => {
+    recordingStartedAtRef.current = null;
     setUri(null);
     setError(null);
     setState('idle');
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -57,9 +67,11 @@ export function useVoiceRecorder() {
       await releaseAudioRecorderSession(recorder);
       await beginAudioRecordingSession(recorder, RecordingPresets.HIGH_QUALITY);
 
+      recordingStartedAtRef.current = Date.now();
       setUri(null);
       setState('recording');
     } catch (err) {
+      recordingStartedAtRef.current = null;
       setError(err instanceof Error ? err.message : 'No se pudo iniciar la grabación');
       setState('idle');
       await releaseAudioRecorderSession(recorder);
@@ -70,17 +82,31 @@ export function useVoiceRecorder() {
 
   const stopRecording = useCallback(async () => {
     try {
-      await recorder.stop();
-      const recordedUri = recorder.uri;
+      const elapsedMs = recordingStartedAtRef.current
+        ? Date.now() - recordingStartedAtRef.current
+        : 0;
 
+      await recorder.stop();
+      recordingStartedAtRef.current = null;
+
+      const recordedUri = recorder.uri;
       if (!recordedUri) {
         throw new Error('No se pudo guardar la grabación');
+      }
+
+      if (isVoiceRecordingTooShort(elapsedMs)) {
+        setUri(null);
+        setState('idle');
+        setError(SHORT_VOICE_RECORDING_MESSAGE);
+        await releaseAudioRecorderSession(recorder);
+        return null;
       }
 
       setUri(recordedUri);
       setState('recorded');
       return recordedUri;
     } catch (err) {
+      recordingStartedAtRef.current = null;
       setError(err instanceof Error ? err.message : 'No se pudo detener la grabación');
       setState('idle');
       await releaseAudioRecorderSession(recorder);
@@ -97,5 +123,6 @@ export function useVoiceRecorder() {
     startRecording,
     stopRecording,
     reset,
+    clearError,
   };
 }

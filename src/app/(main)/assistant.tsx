@@ -40,7 +40,7 @@ export default function AssistantScreen() {
   const { user } = useAuth();
   const { preferredName, autoSendVoice, setAutoSendVoice } = useUserPreferences();
   const { sendTextMessage, sendVoiceMessage, isProcessing, processingStep } = useAssistant();
-  const { isRecording, hasRecording, uri, error, startRecording, stopRecording, reset } =
+  const { isRecording, hasRecording, uri, error, startRecording, stopRecording, reset, clearError } =
     useVoiceRecorder();
 
   const displayName = preferredName.trim() || user?.name?.split(' ')[0] || '';
@@ -54,10 +54,11 @@ export default function AssistantScreen() {
   const autoSendInFlightUriRef = useRef<string | null>(null);
   const feedbackClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const canSendText = input.trim().length > 0 && !isProcessing && !isRecording && !hasRecording;
+  const canSendText = input.trim().length > 0 && !isProcessing && !isRecording;
   const isListening = isRecording;
   const showBusy = isProcessing && !isListening;
-  const showReview = hasRecording && !!uri && !isProcessing && !autoSendVoice;
+  // Keep review UI visible while a text/audio request is processing so the user can send the other next.
+  const showReview = hasRecording && !!uri && !autoSendVoice;
 
   const clearFeedbackTimer = useCallback(() => {
     if (feedbackClearTimerRef.current) {
@@ -84,8 +85,10 @@ export default function AssistantScreen() {
       return () => {
         clearFeedbackTimer();
         setResultFeedback(null);
+        setStatusError(null);
+        clearError();
       };
-    }, [clearFeedbackTimer]),
+    }, [clearFeedbackTimer, clearError]),
   );
 
   useEffect(() => {
@@ -93,7 +96,7 @@ export default function AssistantScreen() {
   }, [clearFeedbackTimer]);
 
   useEffect(() => {
-    if (error) setStatusError(error);
+    setStatusError(error);
   }, [error]);
 
   useEffect(() => {
@@ -222,12 +225,12 @@ export default function AssistantScreen() {
       ? resultFeedback
       : isListening
         ? `${APP_NAME} está escuchando...`
-        : showReview
-          ? null
-          : showBusy
-            ? processingStep === 'transcribing' || processingStep === 'uploading'
-              ? 'Procesando tu audio...'
-              : 'Organizando...'
+        : showBusy
+          ? processingStep === 'transcribing' || processingStep === 'uploading'
+            ? 'Procesando tu audio...'
+            : 'Organizando...'
+          : showReview
+            ? null
             : autoSendVoice
               ? 'Toca el micrófono. Se enviará al detener.'
               : 'Toca el micrófono para hablar';
@@ -251,6 +254,8 @@ export default function AssistantScreen() {
               autoSend={autoSendVoice}
               disabled={modeToggleDisabled}
               onChange={(next) => {
+                setStatusError(null);
+                clearError();
                 void setAutoSendVoice(next);
               }}
             />
@@ -319,21 +324,33 @@ export default function AssistantScreen() {
               <KeyboardIcon size={18} color={APP_TEXT_MUTED} />
               <TextInput
                 value={input}
-                onChangeText={setInput}
+                onChangeText={(text) => {
+                  setStatusError(null);
+                  clearError();
+                  setInput(text);
+                }}
+                onFocus={() => {
+                  setStatusError(null);
+                  clearError();
+                }}
                 placeholder="O escribe tu tarea aquí..."
                 placeholderTextColor={APP_TEXT_MUTED}
-                editable={!isRecording && !hasRecording}
+                editable={!isRecording}
                 onSubmitEditing={() => void handleSendText()}
                 returnKeyType="send"
                 className="flex-1 py-3.5 text-[15px] text-white"
               />
-              {canSendText ? (
+              {input.trim().length > 0 ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Enviar"
+                  disabled={!canSendText}
                   onPress={() => void handleSendText()}
                   className="h-9 w-9 items-center justify-center rounded-full active:opacity-80"
-                  style={{ backgroundColor: APP_ACCENT }}>
+                  style={{
+                    backgroundColor: APP_ACCENT,
+                    opacity: canSendText ? 1 : 0.45,
+                  }}>
                   <Ionicons name="arrow-up" size={18} color={APP_ON_ACCENT} />
                 </Pressable>
               ) : null}
