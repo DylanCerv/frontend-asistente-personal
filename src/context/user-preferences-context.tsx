@@ -267,7 +267,14 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       const updated = await updateMySettings(patch);
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(updated));
     } catch {
-      // save locally; will sync on next loadFromBackend
+      // Keep preference locally if the network/API fails; next loadFromBackend will sync.
+      try {
+        const raw = await AsyncStorage.getItem(CACHE_KEY);
+        const cached = raw ? (JSON.parse(raw) as Partial<UserSettings>) : {};
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ ...cached, ...patch }));
+      } catch {
+        // ignore cache write errors
+      }
     }
   }
 

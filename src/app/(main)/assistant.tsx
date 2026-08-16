@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { VoiceReviewControls } from '@/components/assistant/voice-review-controls';
+import { VoiceSendModeToggle } from '@/components/assistant/voice-send-mode-toggle';
 import { VoiceWaveform } from '@/components/assistant/voice-waveform';
 import { KeyboardIcon } from '@/components/icons/keyboard-icon';
 import { KivoWordmark } from '@/components/kivo-wordmark';
@@ -37,7 +38,7 @@ export default function AssistantScreen() {
   const router = useRouter();
   const { autoRecord } = useLocalSearchParams<{ autoRecord?: string }>();
   const { user } = useAuth();
-  const { preferredName, autoSendVoice } = useUserPreferences();
+  const { preferredName, autoSendVoice, setAutoSendVoice } = useUserPreferences();
   const { sendTextMessage, sendVoiceMessage, isProcessing, processingStep } = useAssistant();
   const { isRecording, hasRecording, uri, error, startRecording, stopRecording, reset } =
     useVoiceRecorder();
@@ -227,9 +228,12 @@ export default function AssistantScreen() {
             ? processingStep === 'transcribing' || processingStep === 'uploading'
               ? 'Procesando tu audio...'
               : 'Organizando...'
-            : 'Toca el micrófono para hablar';
+            : autoSendVoice
+              ? 'Toca el micrófono. Se enviará al detener.'
+              : 'Toca el micrófono para hablar';
 
   const statusColor = statusError ? '#F87171' : resultFeedback ? '#2DD4BF' : APP_ACCENT;
+  const modeToggleDisabled = isProcessing || isRecording;
 
   return (
     <ScreenSafeArea edges={['top']}>
@@ -241,8 +245,15 @@ export default function AssistantScreen() {
           contentContainerClassName="flex-grow px-5 pb-8 pt-2"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <View className="mb-5">
+          <View className="mb-4 gap-3">
             <KivoWordmark size={22} />
+            <VoiceSendModeToggle
+              autoSend={autoSendVoice}
+              disabled={modeToggleDisabled}
+              onChange={(next) => {
+                void setAutoSendVoice(next);
+              }}
+            />
           </View>
 
           <View className="flex-1 items-center justify-center gap-5 py-4">
@@ -311,7 +322,7 @@ export default function AssistantScreen() {
                 onChangeText={setInput}
                 placeholder="O escribe tu tarea aquí..."
                 placeholderTextColor={APP_TEXT_MUTED}
-                editable={!isProcessing && !isRecording && !hasRecording}
+                editable={!isRecording && !hasRecording}
                 onSubmitEditing={() => void handleSendText()}
                 returnKeyType="send"
                 className="flex-1 py-3.5 text-[15px] text-white"

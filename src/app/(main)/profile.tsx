@@ -10,6 +10,7 @@ import {
   ProfileSettingsSheet,
   type ProfileSheetType,
 } from '@/components/profile-settings-sheet';
+import { ProfileFeedbackCard } from '@/components/profile-feedback-card';
 import { KivoWordmark } from '@/components/kivo-wordmark';
 import { ScreenSafeArea } from '@/components/screen-safe-area';
 import { WidgetSetupSheet } from '@/components/widget-setup-sheet';
@@ -334,6 +335,8 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </View>
+
+          <ProfileFeedbackCard />
 
           {/* Plan card */}
           <View

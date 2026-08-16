@@ -60,13 +60,18 @@ import {
   isTaskTimePast,
 } from '@/utils/agenda-utils';
 import {
+  daysFromNowIso,
+  enumerateDates,
   formatSelectedDatesLabel,
+  formatShortDate,
+  getPresetRange,
   isDateSelected,
   relativeDayLabel,
   todayIso,
 } from '@/utils/date-utils';
 
 type FilterType = 'all' | 'tasks' | 'events';
+type QuickRange = 'today' | 'tomorrow' | 'week';
 
 export default function AgendaScreen() {
   const { taskId, eventId } = useLocalSearchParams<{ taskId?: string; eventId?: string }>();
@@ -90,6 +95,44 @@ export default function AgendaScreen() {
       onChange(dates.length > 0 ? dates : [todayIso()]);
     },
     [onChange],
+  );
+
+  const weekDates = useMemo(() => enumerateDates(getPresetRange('week')), []);
+  const weekRangeLabel = useMemo(() => {
+    if (weekDates.length === 0) return '';
+    return `${formatShortDate(weekDates[0])} – ${formatShortDate(weekDates[weekDates.length - 1])}`;
+  }, [weekDates]);
+
+  const activeQuickRange = useMemo((): QuickRange | null => {
+    const today = todayIso();
+    const tomorrow = daysFromNowIso(1);
+    const sorted = [...selectedDates].sort();
+
+    if (sorted.length === 1 && sorted[0] === today) return 'today';
+    if (sorted.length === 1 && sorted[0] === tomorrow) return 'tomorrow';
+    if (
+      weekDates.length > 0 &&
+      sorted.length === weekDates.length &&
+      weekDates.every((day, index) => day === sorted[index])
+    ) {
+      return 'week';
+    }
+    return null;
+  }, [selectedDates, weekDates]);
+
+  const applyQuickRange = useCallback(
+    (range: QuickRange) => {
+      if (range === 'today') {
+        setSelectedDates([todayIso()]);
+        return;
+      }
+      if (range === 'tomorrow') {
+        setSelectedDates([daysFromNowIso(1)]);
+        return;
+      }
+      setSelectedDates(enumerateDates(getPresetRange('week')));
+    },
+    [setSelectedDates],
   );
 
   useEffect(() => {
@@ -324,6 +367,63 @@ export default function AgendaScreen() {
               Filtros
             </Text>
           </Pressable>
+        </View>
+
+        <View className="flex-row gap-2">
+          {(
+            [
+              { id: 'today', label: 'Hoy', icon: 'today-outline' },
+              { id: 'tomorrow', label: 'Mañana', icon: 'sunny-outline' },
+              { id: 'week', label: 'Esta Semana', icon: 'calendar-outline' },
+            ] as const
+          ).map((option) => {
+            const selected = activeQuickRange === option.id;
+            const subtitle = option.id === 'week' ? weekRangeLabel : null;
+            return (
+              <Pressable
+                key={option.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={
+                  subtitle
+                    ? `Ver tareas de ${option.label}, del ${subtitle}`
+                    : `Ver tareas de ${option.label}`
+                }
+                onPress={() => applyQuickRange(option.id)}
+                className={`min-w-0 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-1.5 py-2 active:opacity-85 ${
+                  selected ? '' : 'border-border bg-surface dark:border-border-dark dark:bg-surface-dark'
+                }`}
+                style={
+                  selected
+                    ? { borderColor: accent.main, backgroundColor: accent.soft }
+                    : undefined
+                }>
+                <Ionicons
+                  name={option.icon}
+                  size={14}
+                  color={selected ? accent.main : APP_TEXT_MUTED}
+                />
+                <View className="min-w-0 items-center">
+                  <Text
+                    className={`text-[12px] font-semibold ${
+                      selected ? '' : 'text-subtle dark:text-subtle-dark'
+                    }`}
+                    numberOfLines={1}
+                    style={selected ? { color: accent.main } : undefined}>
+                    {option.label}
+                  </Text>
+                  {subtitle ? (
+                    <Text
+                      className="text-[9px] font-medium"
+                      numberOfLines={1}
+                      style={{ color: selected ? accent.main : APP_TEXT_MUTED, opacity: 0.85 }}>
+                      {subtitle}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
         {filtersVisible ? (
