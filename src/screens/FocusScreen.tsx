@@ -11,6 +11,7 @@ import {
   APP_ACCENT,
   APP_BACKGROUND,
   APP_BORDER,
+  APP_DANGER,
   APP_ON_ACCENT,
   APP_SURFACE,
   APP_SURFACE_SOFT,
@@ -21,6 +22,7 @@ import { useAuth } from '@/context/auth-context';
 import { useDeviceCalendar } from '@/context/device-calendar-context';
 import { useFocusSession } from '@/context/focus-session-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
+import { useTickingNow } from '@/hooks/use-ticking-now';
 import { formatFocusCountdown } from '@/services/focus/focus-session-store';
 import {
   buildFocusDayStats,
@@ -36,6 +38,39 @@ import type { TaskItem } from '@/types/assistant';
 
 const TEAL = '#2DD4BF';
 const TAB_BAR_CLEARANCE = 92;
+
+function OverdueBanner({ count, onPress }: { count: number; onPress: () => void }) {
+  const label = count === 1 ? '1 pendiente atrasado' : `${count} pendientes atrasados`;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Ver ${label} en Tareas`}
+      onPress={onPress}
+      className="min-h-[52px] flex-row items-center gap-3 rounded-2xl border px-4 py-3.5 active:opacity-85"
+      style={{
+        backgroundColor: 'rgba(248,113,113,0.10)',
+        borderColor: 'rgba(248,113,113,0.35)',
+      }}>
+      <View
+        className="h-11 w-11 items-center justify-center rounded-xl"
+        style={{ backgroundColor: 'rgba(248,113,113,0.16)' }}>
+        <Ionicons name="alert-circle" size={22} color={APP_DANGER} />
+      </View>
+      <View className="min-w-0 flex-1 gap-0.5">
+        <Text
+          className="text-[11px] font-semibold uppercase tracking-[1.2px]"
+          style={{ color: APP_DANGER }}>
+          Atrasos
+        </Text>
+        <Text className="text-[16px] font-semibold text-white" numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={APP_DANGER} />
+    </Pressable>
+  );
+}
 
 function KpiCell({ kpi }: { kpi: FocusDashboardKpi }) {
   return (
@@ -89,7 +124,7 @@ function NextTimedBlockCard({
             Próximo bloque
           </Text>
           <Text className="text-[12px] font-semibold" style={{ color: TEAL }}>
-            · en {formatMinutesShort(block.minutesUntil)}
+            · {block.minutesUntil <= 0 ? 'ahora' : `en ${formatMinutesShort(block.minutesUntil)}`}
           </Text>
         </View>
         <Text className="text-[16px] font-semibold text-white" numberOfLines={1}>
@@ -119,7 +154,6 @@ function ChecklistBlock({
   onSeeTasks: () => void;
 }) {
   const primary = tasks[0] ?? null;
-  const rest = tasks.slice(1);
 
   if (!primary) {
     return (
@@ -183,22 +217,6 @@ function ChecklistBlock({
         </View>
       </View>
 
-      {rest.length > 0 ? (
-        <View className="gap-2">
-          {rest.map((task) => (
-            <View
-              key={task.id}
-              className="flex-row items-center gap-3 rounded-xl border px-3 py-2.5"
-              style={{ borderColor: APP_BORDER, backgroundColor: APP_SURFACE_SOFT }}>
-              <Ionicons name="checkbox-outline" size={16} color={APP_TEXT_MUTED} />
-              <Text className="min-w-0 flex-1 text-[14px] text-white" numberOfLines={1}>
-                {task.title}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
       <View className="gap-2.5">
         <Pressable
           accessibilityRole="button"
@@ -234,6 +252,7 @@ export function FocusScreen() {
     useAssistant();
   const { deviceCalendarEvents, refreshDeviceCalendar } = useDeviceCalendar();
   const { isActive, session, remainingMs, openSessionUi, startSession } = useFocusSession();
+  const now = useTickingNow();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showStartSheet, setShowStartSheet] = useState(false);
   const [focusTaskForSheet, setFocusTaskForSheet] = useState<TaskItem | null>(null);
@@ -247,16 +266,17 @@ export function FocusScreen() {
   );
 
   const { insightStats, checklistTasks } = useMemo(() => {
-    const nextTimed = getNextTimedBlock(mergedEvents, undefined, new Date(), tasks);
+    const clock = new Date(now);
+    const nextTimed = getNextTimedBlock(mergedEvents, undefined, clock, tasks);
     const checklist = getFocusChecklistTasks(tasks, {
       excludeIds: nextTimed?.kind === 'task' ? [nextTimed.id] : [],
-      limit: 3,
+      limit: 1,
     });
     return {
-      insightStats: buildFocusDayStats(tasks, mergedEvents, undefined, checklist[0] ?? null),
+      insightStats: buildFocusDayStats(tasks, mergedEvents, undefined, checklist[0] ?? null, clock),
       checklistTasks: checklist,
     };
-  }, [tasks, mergedEvents]);
+  }, [tasks, mergedEvents, now]);
 
   async function handleRefresh() {
     setIsRefreshing(true);
@@ -317,6 +337,15 @@ export function FocusScreen() {
                 </View>
               ))}
             </View>
+
+            {insightStats.overdueCount > 0 ? (
+              <OverdueBanner
+                count={insightStats.overdueCount}
+                onPress={() =>
+                  router.push({ pathname: '/tasks', params: { filter: 'overdue' } })
+                }
+              />
+            ) : null}
 
             {isActive && session ? (
               <Pressable

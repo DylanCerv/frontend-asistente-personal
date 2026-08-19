@@ -188,6 +188,8 @@ export default function ProfileScreen() {
   const {
     autoSendVoice,
     setAutoSendVoice,
+    voiceReplyEnabled,
+    setVoiceReplyEnabled,
     preferredName,
     homeWidgetEnabled,
     setHomeWidgetEnabled,
@@ -395,6 +397,12 @@ export default function ProfileScreen() {
                 onPress={() => setAutoSendVoice(!autoSendVoice)}
               />
               <SettingsRow
+                icon="volume-high-outline"
+                label="Respuesta hablada"
+                value={voiceReplyEnabled ? 'Activada' : 'Apagada'}
+                onPress={() => setVoiceReplyEnabled(!voiceReplyEnabled)}
+              />
+              <SettingsRow
                 icon="locate-outline"
                 label="Modo Focus"
                 value={getFocusLockIntensityShortLabel(focusLockIntensity)}
@@ -408,6 +416,9 @@ export default function ProfileScreen() {
                 isLast
               />
             </SettingsCard>
+            <Text className="mt-2 px-1 text-[11px] leading-4" style={{ color: APP_TEXT_MUTED }}>
+              La respuesta hablada la lee el teléfono, sin tokens extra. El audio que envías sí usa Whisper e IA.
+            </Text>
           </View>
 
           {/* Organización */}
@@ -511,6 +522,19 @@ export default function ProfileScreen() {
                     </View>
                   ))
                 : null}
+            </SettingsCard>
+          </View>
+
+          <View>
+            <SectionLabel>Registro</SectionLabel>
+            <SettingsCard>
+              <SettingsRow
+                icon="time-outline"
+                label="Actividad"
+                value="Capturas"
+                onPress={() => router.push('/activity')}
+                isLast
+              />
             </SettingsCard>
           </View>
 

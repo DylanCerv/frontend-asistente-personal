@@ -48,7 +48,6 @@ const CHECKIN_LOOKAHEAD_DAYS = 7;
 
 /** Backend default times when the user did not mention a specific clock time. */
 const IMPLICIT_DAY_TIMES = [
-  { hour: 9, minute: 0 },
   { hour: SOFT_DAY_NOTIFICATION_HOUR, minute: SOFT_DAY_NOTIFICATION_MINUTE },
   { hour: 0, minute: 0 },
 ];

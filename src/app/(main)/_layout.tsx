@@ -48,8 +48,8 @@ function MainShell() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Focus',
-            tabBarAccessibilityLabel: 'Focus',
+            title: 'Home',
+            tabBarAccessibilityLabel: 'Home',
           }}
         />
         <Tabs.Screen
@@ -74,6 +74,7 @@ function MainShell() {
           }}
         />
         <Tabs.Screen name="agenda" options={{ href: null }} />
+        <Tabs.Screen name="activity" options={{ href: null }} />
         <Tabs.Screen name="finances" options={{ href: null }} />
         <Tabs.Screen name="report" options={{ href: null }} />
         <Tabs.Screen name="capture" options={{ href: null }} />

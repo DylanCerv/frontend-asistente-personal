@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { VoiceReplyToggle } from '@/components/assistant/voice-reply-toggle';
 import { VoiceReviewControls } from '@/components/assistant/voice-review-controls';
 import { VoiceSendModeToggle } from '@/components/assistant/voice-send-mode-toggle';
 import { VoiceWaveform } from '@/components/assistant/voice-waveform';
@@ -33,12 +34,18 @@ import { useAssistant } from '@/context/assistant-context';
 import { useAuth } from '@/context/auth-context';
 import { useUserPreferences } from '@/context/user-preferences-context';
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
+import {
+  speakAssistantReply,
+  spokenReplyDurationMs,
+  stopSpokenReply,
+} from '@/services/assistant/speak-reply';
 
 export default function AssistantScreen() {
   const router = useRouter();
   const { autoRecord } = useLocalSearchParams<{ autoRecord?: string }>();
   const { user } = useAuth();
-  const { preferredName, autoSendVoice, setAutoSendVoice } = useUserPreferences();
+  const { preferredName, autoSendVoice, setAutoSendVoice, voiceReplyEnabled, setVoiceReplyEnabled } =
+    useUserPreferences();
   const { sendTextMessage, sendVoiceMessage, isProcessing, processingStep } = useAssistant();
   const { isRecording, hasRecording, uri, error, startRecording, stopRecording, reset, clearError } =
     useVoiceRecorder();
@@ -71,12 +78,15 @@ export default function AssistantScreen() {
     (reply: string) => {
       clearFeedbackTimer();
       setResultFeedback(reply);
+      if (voiceReplyEnabled) {
+        speakAssistantReply(reply);
+      }
       feedbackClearTimerRef.current = setTimeout(() => {
         setResultFeedback(null);
         feedbackClearTimerRef.current = null;
-      }, 4500);
+      }, voiceReplyEnabled ? spokenReplyDurationMs(reply) : 4500);
     },
-    [clearFeedbackTimer],
+    [clearFeedbackTimer, voiceReplyEnabled],
   );
 
   useFocusEffect(
@@ -87,12 +97,16 @@ export default function AssistantScreen() {
         setResultFeedback(null);
         setStatusError(null);
         clearError();
+        stopSpokenReply();
       };
     }, [clearFeedbackTimer, clearError]),
   );
 
   useEffect(() => {
-    return () => clearFeedbackTimer();
+    return () => {
+      clearFeedbackTimer();
+      stopSpokenReply();
+    };
   }, [clearFeedbackTimer]);
 
   useEffect(() => {
@@ -158,6 +172,7 @@ export default function AssistantScreen() {
     setStatusError(null);
     clearFeedbackTimer();
     setResultFeedback(null);
+    stopSpokenReply();
 
     if (isRecording) {
       await stopRecording();
@@ -211,6 +226,7 @@ export default function AssistantScreen() {
     setStatusError(null);
     clearFeedbackTimer();
     setResultFeedback(null);
+    stopSpokenReply();
     try {
       const reply = await sendTextMessage(text);
       if (reply) showResultFeedback(reply);
@@ -259,6 +275,20 @@ export default function AssistantScreen() {
                 void setAutoSendVoice(next);
               }}
             />
+            <VoiceReplyToggle
+              enabled={voiceReplyEnabled}
+              disabled={modeToggleDisabled}
+              onChange={(next) => {
+                setStatusError(null);
+                if (!next) stopSpokenReply();
+                void setVoiceReplyEnabled(next);
+              }}
+            />
+            {voiceReplyEnabled ? (
+              <Text className="self-center text-center text-[11px] leading-4" style={{ color: APP_TEXT_MUTED }}>
+                El teléfono lee la respuesta. Eso no gasta tokens. El audio que envías sí usa Whisper e IA.
+              </Text>
+            ) : null}
           </View>
 
           <View className="flex-1 items-center justify-center gap-5 py-4">

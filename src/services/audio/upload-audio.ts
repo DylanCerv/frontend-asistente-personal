@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '@/config/api';
 import { LIGHT_VOICE_UPLOAD } from '@/constants/voice-recording';
 import type { UploadAudioResponse } from '@/types/audio-job';
+import { getDeviceTimeZone } from '@/utils/timezone';
 
 import { ApiError, handleUnauthorized } from '../api/api-error';
 import { getAuthHeaders } from '../api/get-auth-headers';
@@ -15,6 +16,7 @@ export async function uploadAudio(uri: string): Promise<UploadAudioResponse> {
     name: LIGHT_VOICE_UPLOAD.fileName,
     type: LIGHT_VOICE_UPLOAD.mimeType,
   } as unknown as Blob);
+  formData.append('timeZone', getDeviceTimeZone());
 
   const response = await fetch(`${API_BASE_URL}/audio`, {
     method: 'POST',

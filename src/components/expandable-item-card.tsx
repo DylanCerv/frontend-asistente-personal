@@ -2,6 +2,8 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import { useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { APP_ACCENT, APP_TEXT, APP_TEXT_MUTED } from '@/constants/app-colors';
+
 type ExpandableItemCardProps = {
   children: ReactNode;
   expandedContent: ReactNode;
@@ -27,7 +29,7 @@ export function ExpandableItemCard({
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
             size={20}
-            color="#6B6475"
+            color={APP_TEXT_MUTED}
           />
         </View>
       </Pressable>
@@ -61,11 +63,15 @@ export function DetailRow({ label, value, icon }: DetailRowProps) {
   return (
     <View className="flex-row items-start gap-3">
       {icon ? (
-        <Ionicons name={icon} size={16} color="#7C3AED" style={{ marginTop: 2 }} />
+        <Ionicons name={icon} size={16} color={APP_ACCENT} style={{ marginTop: 2 }} />
       ) : null}
       <View className="flex-1 gap-0.5">
-        <Text className="text-xs text-subtle dark:text-subtle-dark">{label}</Text>
-        <Text className="text-sm text-foreground dark:text-foreground-dark">{value}</Text>
+        <Text className="text-[11px]" style={{ color: APP_TEXT_MUTED }}>
+          {label}
+        </Text>
+        <Text className="text-[13px] leading-5" style={{ color: APP_TEXT }}>
+          {value}
+        </Text>
       </View>
     </View>
   );

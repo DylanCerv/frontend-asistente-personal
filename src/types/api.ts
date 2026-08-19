@@ -40,6 +40,7 @@ export type AssistantChatRequest = {
   message: string;
   userName: string;
   userEmail?: string;
+  timeZone?: string;
   context: {
     tasks: TaskItem[];
     events: CalendarEvent[];
@@ -62,6 +63,7 @@ export type AssistantChatResponse = {
   newTasks?: TaskItem[];
   newEvents?: CalendarEvent[];
   completedTaskIds?: string[];
+  needsConfirmation?: boolean;
 };
 
 export type WhisperTranscriptionResponse = {

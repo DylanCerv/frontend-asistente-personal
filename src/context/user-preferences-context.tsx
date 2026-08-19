@@ -62,6 +62,7 @@ const HOME_WIDGET_ENABLED_KEY = '@asistente/home_widget_enabled';
 export const HOME_WIDGET_SETUP_PENDING_KEY = '@asistente/home_widget_setup_pending';
 const DAILY_SUMMARY_ENABLED_KEY = '@asistente/daily_summary_enabled';
 const DEVICE_CALENDAR_SYNC_KEY = '@asistente/device_calendar_sync_enabled';
+const VOICE_REPLY_ENABLED_KEY = '@asistente/voice_reply_enabled';
 const FOCUS_LOCK_INTENSITY_KEY = '@asistente/focus_lock_intensity';
 const REMINDER_ALERT_SOUND_LOCAL_KEY = '@asistente/reminder_alert_sound_local';
 const REMINDER_ALERT_VIBRATION_LOCAL_KEY = '@asistente/reminder_alert_vibration_local';
@@ -91,6 +92,7 @@ type UserPreferencesContextValue = {
   dailySummaryEnabled: boolean;
   deviceCalendarSyncEnabled: boolean;
   autoSendVoice: boolean;
+  voiceReplyEnabled: boolean;
   /** @deprecated Use appLockMethod !== 'none' */
   biometricLock: boolean;
   appLockMethod: AppLockMethod;
@@ -107,6 +109,7 @@ type UserPreferencesContextValue = {
   setDailySummaryEnabled: (value: boolean) => Promise<void>;
   setDeviceCalendarSyncEnabled: (value: boolean) => Promise<void>;
   setAutoSendVoice: (value: boolean) => Promise<void>;
+  setVoiceReplyEnabled: (value: boolean) => Promise<void>;
   setBiometricLock: (value: boolean) => Promise<void>;
   enableAppLock: (method: Exclude<AppLockMethod, 'none'>) => Promise<void>;
   disableAppLock: () => Promise<void>;
@@ -136,6 +139,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const [dailySummaryEnabled, setDailySummaryEnabledState] = useState(true);
   const [deviceCalendarSyncEnabled, setDeviceCalendarSyncEnabledState] = useState(false);
   const [autoSendVoice, setAutoSendVoiceState] = useState(DEFAULTS.auto_send_audio);
+  const [voiceReplyEnabled, setVoiceReplyEnabledState] = useState(false);
   const [appLockMethod, setAppLockMethodState] = useState<AppLockMethod>('none');
   const [appLockDelaySeconds, setAppLockDelaySecondsState] = useState<AppLockDelaySeconds>(
     DEFAULT_APP_LOCK_DELAY_SECONDS,
@@ -180,6 +184,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
           lockDelay,
           dailySummary,
           deviceCalendar,
+          voiceReply,
           focusIntensity,
           localSound,
           localVibration,
@@ -191,6 +196,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(APP_LOCK_DELAY_KEY),
           AsyncStorage.getItem(DAILY_SUMMARY_ENABLED_KEY),
           AsyncStorage.getItem(DEVICE_CALENDAR_SYNC_KEY),
+          AsyncStorage.getItem(VOICE_REPLY_ENABLED_KEY),
           AsyncStorage.getItem(FOCUS_LOCK_INTENSITY_KEY),
           AsyncStorage.getItem(REMINDER_ALERT_SOUND_LOCAL_KEY),
           AsyncStorage.getItem(REMINDER_ALERT_VIBRATION_LOCAL_KEY),
@@ -220,6 +226,10 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
 
         if (deviceCalendar === 'true') {
           setDeviceCalendarSyncEnabledState(true);
+        }
+
+        if (voiceReply === 'true') {
+          setVoiceReplyEnabledState(true);
         }
 
         setAppLockDelaySecondsState(parseAppLockDelaySeconds(lockDelay));
@@ -323,6 +333,11 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     await persist({ auto_send_audio: value });
   }, []);
 
+  const setVoiceReplyEnabled = useCallback(async (value: boolean) => {
+    setVoiceReplyEnabledState(value);
+    await AsyncStorage.setItem(VOICE_REPLY_ENABLED_KEY, value ? 'true' : 'false');
+  }, []);
+
   const enableAppLock = useCallback(async (method: Exclude<AppLockMethod, 'none'>) => {
     if (method === 'biometric') {
       await clearPin();
@@ -384,6 +399,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       dailySummaryEnabled,
       deviceCalendarSyncEnabled,
       autoSendVoice,
+      voiceReplyEnabled,
       biometricLock,
       appLockMethod,
       appLockDelaySeconds,
@@ -399,6 +415,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setDailySummaryEnabled,
       setDeviceCalendarSyncEnabled,
       setAutoSendVoice,
+      setVoiceReplyEnabled,
       setBiometricLock,
       enableAppLock,
       disableAppLock,
@@ -419,6 +436,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       dailySummaryEnabled,
       deviceCalendarSyncEnabled,
       autoSendVoice,
+      voiceReplyEnabled,
       biometricLock,
       appLockMethod,
       appLockDelaySeconds,
@@ -434,6 +452,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setDailySummaryEnabled,
       setDeviceCalendarSyncEnabled,
       setAutoSendVoice,
+      setVoiceReplyEnabled,
       setBiometricLock,
       enableAppLock,
       disableAppLock,

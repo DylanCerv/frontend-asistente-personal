@@ -1,6 +1,7 @@
 import type { AssistantChatRequest, AssistantChatResponse } from '@/types/api';
 
 import { apiRequest } from './api/api-client';
+import { getDeviceTimeZone } from '@/utils/timezone';
 
 export class AssistantApiError extends Error {
   constructor(
@@ -24,7 +25,10 @@ export async function sendMessageToAssistant(
     const response = await apiRequest<ChatApiResponse>('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        timeZone: payload.timeZone || getDeviceTimeZone(),
+      }),
     });
 
     const reply = response.reply?.trim() || response.data?.reply?.trim();
@@ -37,6 +41,9 @@ export async function sendMessageToAssistant(
       newTasks: response.newTasks ?? response.data?.newTasks,
       newEvents: response.newEvents ?? response.data?.newEvents,
       completedTaskIds: response.completedTaskIds ?? response.data?.completedTaskIds,
+      needsConfirmation: Boolean(
+        response.needsConfirmation ?? response.data?.needsConfirmation,
+      ),
     };
   } catch (error) {
     if (error instanceof AssistantApiError) throw error;

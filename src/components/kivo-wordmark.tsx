@@ -2,6 +2,7 @@ import { Text, View } from 'react-native';
 
 import { KivoLogo } from '@/components/kivo-logo';
 import { APP_ACCENT, APP_ACCENT_SOFT } from '@/constants/app-colors';
+import { APP_NAME } from '@/constants/branding';
 
 type KivoWordmarkProps = {
   /** Logo mark size in px. Text scales slightly under this for optical match. */
@@ -10,7 +11,7 @@ type KivoWordmarkProps = {
   foldColor?: string;
 };
 
-/** Brand mark + “ivo” so the pair reads as “Kivo”. */
+/** Brand mark + the full name “Kivo”. */
 export function KivoWordmark({
   size = 24,
   color = APP_ACCENT,
@@ -22,8 +23,8 @@ export function KivoWordmark({
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel="Kivo"
-      className="flex-row items-end">
+      accessibilityLabel={APP_NAME}
+      className="flex-row items-center">
       <KivoLogo size={size} color={color} foldColor={foldColor} />
       <Text
         className="font-bold tracking-tight"
@@ -32,10 +33,9 @@ export function KivoWordmark({
           fontSize: textSize,
           lineHeight: textSize,
           includeFontPadding: false,
-          marginLeft: -2,
-          marginBottom: 1,
+          marginLeft: 6,
         }}>
-        ivo
+        {APP_NAME}
       </Text>
     </View>
   );

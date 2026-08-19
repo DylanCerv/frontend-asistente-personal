@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth/session-storage';
+import { getDeviceTimeZone } from '@/utils/timezone';
 
 import { ApiError } from './api-error';
 
@@ -11,5 +12,6 @@ export async function getAuthHeaders(): Promise<HeadersInit> {
 
   return {
     Authorization: `Bearer ${accessToken}`,
+    'X-Timezone': getDeviceTimeZone(),
   };
 }

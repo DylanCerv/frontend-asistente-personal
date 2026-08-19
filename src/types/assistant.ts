@@ -16,6 +16,8 @@ export type TaskItem = {
   priority: Priority;
   status: 'pending' | 'completed';
   category: string;
+  project?: string;
+  time?: string;
   tags: string[];
   assignedTo?: string;
   subtasks?: { id: string; title: string; completed: boolean }[];

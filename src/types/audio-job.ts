@@ -23,11 +23,42 @@ export interface StructuredData {
   currency?: string | null;
 }
 
+export type CaptureAction =
+  | 'create'
+  | 'update'
+  | 'link'
+  | 'ask'
+  | 'create_project'
+  | 'complete';
+
+export interface CaptureStructuredData {
+  action?: CaptureAction;
+  needsConfirmation?: boolean;
+  question?: string | null;
+  options?: string[];
+  summary?: string | null;
+  source?: 'audio' | 'text';
+  staleAskIgnored?: boolean;
+  items?: StructuredData[];
+  pending?: {
+    originalText?: string;
+    expiresAt?: string;
+    resolved?: boolean;
+    cancelled?: boolean;
+  };
+  match?: {
+    projectName?: string | null;
+    relatedTaskId?: string | null;
+    relation?: string | null;
+    reason?: string | null;
+  };
+}
+
 export interface JobRecord extends ApiRecord {}
 
 export interface JobResult {
   transcription: string;
-  structuredData: StructuredData | { items?: StructuredData[]; summary?: string | null };
+  structuredData: StructuredData | CaptureStructuredData;
   records?: ApiRecord[];
   record: JobRecord | null;
 }

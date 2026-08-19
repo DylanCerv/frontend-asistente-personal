@@ -1,5 +1,5 @@
 import type { CalendarEvent, Priority, TaskItem } from '@/types/assistant';
-import { getTaskTimeLabel } from '@/utils/agenda-utils';
+import { countOverdueItems, getMinutesUntilDue, getTaskTimeLabel } from '@/utils/agenda-utils';
 import { todayIso } from '@/utils/date-utils';
 
 export type FocusLaterItem = {
@@ -31,6 +31,7 @@ export type FocusDayStats = {
   completedToday: number;
   totalToday: number;
   pendingToday: number;
+  overdueCount: number;
   flexibleCount: number;
   flexibleEstimatedMinutes: number;
   openCount: number;
@@ -283,47 +284,46 @@ export function getNextTimedBlock(
   tasks: TaskItem[] = [],
 ): FocusTimedBlock | null {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMs = now.getTime();
+  const fromEvents: FocusTimedBlock[] = [];
+  const fromTasks: FocusTimedBlock[] = [];
 
-  const fromEvents: FocusTimedBlock[] = getTimedEventsToday(events, today)
-    .map((event) => {
-      const start = parseTimeToMinutes(event.time);
-      if (start == null || start < nowMinutes) return null;
-      const endFromTime = parseTimeToMinutes(event.endTime);
-      const duration = endFromTime
-        ? Math.max(15, endFromTime - start)
-        : (event.durationMinutes ?? 60);
-      const timeLabel = event.endTime ? `${event.time}–${event.endTime}` : event.time;
-      return {
-        id: event.id,
-        title: event.title,
-        timeLabel,
-        minutesUntil: start - nowMinutes,
-        durationMinutes: duration,
-        kind: 'event' as const,
-      } satisfies FocusTimedBlock;
-    })
-    .filter((block): block is FocusTimedBlock => block != null);
+  for (const event of getTimedEventsToday(events, today)) {
+    const start = parseTimeToMinutes(event.time);
+    const minutesUntil =
+      getMinutesUntilDue(event, nowMs) ?? (start != null ? start - nowMinutes : null);
+    if (minutesUntil == null || minutesUntil < 0) continue;
+    const endFromTime = parseTimeToMinutes(event.endTime);
+    fromEvents.push({
+      id: event.id,
+      title: event.title,
+      timeLabel: event.endTime ? `${event.time}–${event.endTime}` : event.time,
+      minutesUntil,
+      durationMinutes:
+        endFromTime != null && start != null
+          ? Math.max(15, endFromTime - start)
+          : (event.durationMinutes ?? 60),
+      kind: 'event',
+    });
+  }
 
-  const fromTasks: FocusTimedBlock[] = tasks
-    .filter((task) => {
-      if (task.status !== 'pending') return false;
-      if (task.scheduledAt !== today) return false;
-      return getTaskTimeLabel(task) != null;
-    })
-    .map((task) => {
-      const timeLabel = getTaskTimeLabel(task)!;
-      const start = parseTimeToMinutes(timeLabel);
-      if (start == null || start < nowMinutes) return null;
-      return {
-        id: task.id,
-        title: task.title,
-        timeLabel,
-        minutesUntil: start - nowMinutes,
-        durationMinutes: estimateTaskMinutes(task),
-        kind: 'task' as const,
-      } satisfies FocusTimedBlock;
-    })
-    .filter((block): block is FocusTimedBlock => block != null);
+  for (const task of tasks) {
+    if (task.status !== 'pending' || task.scheduledAt !== today) continue;
+    const timeLabel = getTaskTimeLabel(task);
+    if (!timeLabel) continue;
+    const start = parseTimeToMinutes(timeLabel);
+    const minutesUntil =
+      getMinutesUntilDue(task, nowMs) ?? (start != null ? start - nowMinutes : null);
+    if (minutesUntil == null || minutesUntil < 0) continue;
+    fromTasks.push({
+      id: task.id,
+      title: task.title,
+      timeLabel,
+      minutesUntil,
+      durationMinutes: estimateTaskMinutes(task),
+      kind: 'task',
+    });
+  }
 
   return [...fromEvents, ...fromTasks].sort((a, b) => a.minutesUntil - b.minutesUntil)[0] ?? null;
 }
@@ -411,7 +411,9 @@ function buildKpis(stats: Omit<FocusDayStats, 'kpis' | 'insight'>): FocusDashboa
       key: 'next',
       label: 'Próxima',
       value: stats.nextTimed
-        ? formatMinutesShort(stats.nextTimed.minutesUntil)
+        ? stats.nextTimed.minutesUntil <= 0
+          ? 'ahora'
+          : formatMinutesShort(stats.nextTimed.minutesUntil)
         : '—',
       hint: stats.nextTimed ? stats.nextTimed.title : 'sin hora',
     },
@@ -444,11 +446,12 @@ export function buildFocusDayStats(
   events: CalendarEvent[],
   today = todayIso(),
   checklistTask: TaskItem | null = null,
+  now = new Date(),
 ): FocusDayStats {
   const timed = getTimedEventsToday(events, today);
   const hasTimedBlocks = timed.length > 0;
   const freeMinutes = hasTimedBlocks ? estimateFreeMinutes(events, today) : null;
-  const nextTimed = getNextTimedBlock(events, today, new Date(), tasks);
+  const nextTimed = getNextTimedBlock(events, today, now, tasks);
 
   const todayTasks = getTodayScopeTasks(tasks, today);
   const todayEvents = getTodayScopeEvents(events, today);
@@ -473,6 +476,7 @@ export function buildFocusDayStats(
   );
 
   const pendingToday = getTodayPendingTasks(tasks, today).length;
+  const overdueCount = countOverdueItems(tasks, events, today);
   const progressPercent =
     totalToday === 0 ? 0 : Math.round((completedToday / totalToday) * 100);
 
@@ -480,6 +484,7 @@ export function buildFocusDayStats(
     completedToday,
     totalToday,
     pendingToday,
+    overdueCount,
     flexibleCount,
     flexibleEstimatedMinutes,
     openCount: openPending.length,

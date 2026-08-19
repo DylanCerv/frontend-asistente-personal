@@ -22,9 +22,9 @@ type TabMeta = {
 
 const TAB_META: Record<string, TabMeta> = {
   index: {
-    label: 'Focus',
-    icon: 'locate-outline',
-    iconActive: 'locate',
+    label: 'Home',
+    icon: 'home-outline',
+    iconActive: 'home',
   },
   assistant: {
     label: 'Asistente',
@@ -49,6 +49,7 @@ const ROUTE_TO_TAB: Record<string, string> = {
   memory: 'tasks',
   finances: 'tasks',
   report: 'tasks',
+  activity: 'profile',
 };
 
 const VISIBLE_TABS = new Set(Object.keys(TAB_META));

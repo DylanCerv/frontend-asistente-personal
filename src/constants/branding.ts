@@ -8,6 +8,13 @@ export const APP_SPLASH_STATUS = 'System Ready';
 export const APP_VERSION = '1.0.0';
 export const APP_VERSION_LABEL = `Kivo Kinetic v${APP_VERSION}`;
 
+const APP_NAME_TYPOS = /\b[Kk]ibo\b/g;
+
+/** Visible copy always uses Kivo — never Kibo or other misspellings. */
+export function correctAppBrandName(text: string): string {
+  return text.replace(APP_NAME_TYPOS, APP_NAME);
+}
+
 export const ASSISTANT_WELCOME_MESSAGE =
   'Hola. Usa el micrófono para crear tareas, recordatorios o ver qué tienes hoy.';
 

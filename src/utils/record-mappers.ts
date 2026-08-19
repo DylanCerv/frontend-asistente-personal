@@ -2,7 +2,9 @@ import type { CalendarEvent, ReminderItem, TaskItem } from '@/types/assistant';
 import type { ApiRecord, UpdateRecordPayload } from '@/types/record-api';
 import type { MemoryRecord } from '@/types/record';
 import { normalizeTaskCategory } from '@/constants/categories';
+import { correctAppBrandName } from '@/constants/branding';
 import { relativeDayLabel, toIsoDate, todayIso } from '@/utils/date-utils';
+import { getDeviceTimeZone } from '@/utils/timezone';
 
 function readString(data: Record<string, unknown>, key: string): string | undefined {
   const value = data[key];
@@ -30,7 +32,12 @@ export function formatTimeLabel(date: string | null | undefined): string {
   if (!date) return '';
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
+  return parsed.toLocaleTimeString('es', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: getDeviceTimeZone(),
+  });
 }
 
 export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
@@ -42,8 +49,8 @@ export function apiRecordToMemory(record: ApiRecord): MemoryRecord {
   return {
     id: record.id,
     type: record.type,
-    title: record.title ?? 'Sin título',
-    description: record.description ?? undefined,
+    title: correctAppBrandName(record.title ?? 'Sin título'),
+    description: record.description ? correctAppBrandName(record.description) : undefined,
     priority: record.priority ?? undefined,
     status: status === 'completed' ? 'completed' : 'pending',
     scheduledAt: toScheduledAt(record.date) ?? undefined,
@@ -77,6 +84,8 @@ export function memoryRecordToTask(record: MemoryRecord): TaskItem | null {
     priority: record.priority ?? 'medium',
     status: record.status === 'completed' ? 'completed' : 'pending',
     category: normalizeTaskCategory(record.category),
+    project: record.project,
+    time: record.time,
     tags: record.tags ?? [],
   };
 }
