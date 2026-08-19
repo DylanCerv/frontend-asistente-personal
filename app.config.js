@@ -11,7 +11,9 @@ const useNativeBuild = process.env.EXPO_PUBLIC_NATIVE_BUILD === "1";
  * Omit it for local Expo Go (`npm start`) so it always runs anonymously.
  * Include it for EAS / native builds (eas.json already sets EXPO_PUBLIC_NATIVE_BUILD=1).
  */
-const easProjectId = "2be79503-ab8b-482b-a863-b1eaebd52f07"; //esta Id es del usuario  Emulator
+
+// const easProjectId = "2be79503-ab8b-482b-a863-b1eaebd52f07"; //esta Id es del usuario  Emulator
+const easProjectId = appJson.expo?.extra?.eas?.projectId; // @kivo2026/kivo
 const includeEasProjectId =
   process.env.EAS_BUILD === "true" ||
   process.env.EXPO_PUBLIC_NATIVE_BUILD === "1" ||
