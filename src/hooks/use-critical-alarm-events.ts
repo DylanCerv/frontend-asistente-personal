@@ -16,6 +16,7 @@ import {
   CRITICAL_SNOOZE_MINUTES,
 } from '@/services/reminders/critical-alarm-notifications';
 import { snoozeInAppAlert } from '@/services/reminders/kivo-alerts';
+import { markReminderPresented } from '@/services/reminders/reminder-present-dedupe';
 import { snoozeReminderNotification } from '@/services/reminders/reminder-notifications';
 
 function canUseNotifeeEvents(): boolean {
@@ -90,6 +91,9 @@ export function useCriticalAlarmEvents() {
         }
 
         if (event.type === EventType.DELIVERED && openCritical) {
+          const scheduleId =
+            typeof data.scheduleId === 'string' ? data.scheduleId : null;
+          markReminderPresented(scheduleId);
           openCriticalAlarm(router, recordId, alarmTitle);
           return;
         }
@@ -103,7 +107,7 @@ export function useCriticalAlarmEvents() {
           await snoozeReminderNotification(
             {
               recordId,
-              title: 'Alarma crítica',
+              title: 'Es la hora',
               body: alarmTitle ?? 'Recordatorio pospuesto',
               kind: 'critical',
             },

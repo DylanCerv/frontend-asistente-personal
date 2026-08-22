@@ -22,11 +22,7 @@ import {
   type ReminderAlertVibrationId,
 } from '@/services/reminders/reminder-alert-presets';
 import { resolveAlertSoundUri } from '@/services/reminders/alert-sound-uri';
-import {
-  shouldPlaySound,
-  shouldVibrate,
-  type ReminderAlertStyle,
-} from '@/services/reminders/reminder-alert-style';
+import type { ReminderAlertStyle } from '@/services/reminders/reminder-alert-style';
 import {
   EXACT_ALERT_ID_PREFIX,
   SNOOZE_ALERT_ID_PREFIX,
@@ -103,22 +99,31 @@ async function ensureCriticalAlarmChannel(
   const cacheKey = `${alertStyle}:${channelId}`;
   if (channelReadyKey === cacheKey) return channelId;
 
-  const playSound = shouldPlaySound(alertStyle, 'alarm');
-  const vibrate = shouldVibrate(alertStyle);
-  const sound = playSound
-    ? soundUri ?? resolveNativeSoundName(soundId, playSound) ?? 'default'
-    : undefined;
+  const playSound = true; // Exact-time alarms must always sound on the device.
+  const vibrate = true;
+  const sound = soundUri ?? resolveNativeSoundName(soundId, playSound) ?? 'default';
 
   await notifee.default.createChannel({
     id: channelId,
-    name: 'Alarmas críticas a pantalla completa',
+    name: 'Alarmas de actividad a pantalla completa',
     importance: notifee.AndroidImportance.HIGH,
     visibility: notifee.AndroidVisibility.PUBLIC,
     sound,
     vibration: vibrate,
-    vibrationPattern: vibrate
-      ? toNotifeeVibrationPattern(resolveVibrationPattern(vibrationId, true))
-      : undefined,
+    vibrationPattern: toNotifeeVibrationPattern(resolveVibrationPattern(vibrationId, true)),
+    lights: true,
+    lightColor: '#C4B5FD',
+  });
+
+  // Base ID matches Expo Push channelId from the backend.
+  await notifee.default.createChannel({
+    id: CRITICAL_ALARM_CHANNEL_ID,
+    name: 'Alarmas de actividad',
+    importance: notifee.AndroidImportance.HIGH,
+    visibility: notifee.AndroidVisibility.PUBLIC,
+    sound,
+    vibration: vibrate,
+    vibrationPattern: toNotifeeVibrationPattern(resolveVibrationPattern(vibrationId, true)),
     lights: true,
     lightColor: '#C4B5FD',
   });
@@ -142,10 +147,13 @@ function toNotifeeAlarmId(scheduleId: string): string {
 function resolveAlarmTitle(item: ReminderScheduleItem): string {
   const fromBody = item.body.match(/[“"]([^”"]+)[”"]/);
   if (fromBody?.[1]) return fromBody[1];
-  if (item.title && item.title !== 'Alerta crítica' && item.title !== 'Alarma crítica') {
+  // Body format: "Title · 3:00 p. m."
+  const beforeDot = item.body.split('·')[0]?.trim();
+  if (beforeDot && beforeDot.length > 0 && beforeDot !== item.title) return beforeDot;
+  if (item.title && !/^Es la hora/i.test(item.title) && item.title !== 'Alarma crítica') {
     return item.title;
   }
-  return item.body || 'Tarea urgente';
+  return beforeDot || item.body || 'Actividad';
 }
 
 export async function cancelAllCriticalAlarms(): Promise<void> {
@@ -163,11 +171,13 @@ export async function cancelAllCriticalAlarms(): Promise<void> {
 
 export async function cancelCriticalAlarmForRecord(recordId: string): Promise<void> {
   const notifee = await getNotifee();
-  if (!notifee) return;
+  if (!notifee || !recordId) return;
 
   try {
     const ids = await notifee.default.getTriggerNotificationIds();
-    const matching = ids.filter((id) => id.includes(recordId));
+    const matching = ids.filter(
+      (id) => id.startsWith(CRITICAL_ALARM_ID_PREFIX) && id.includes(recordId),
+    );
     await Promise.all(matching.map((id) => notifee.default.cancelNotification(id)));
   } catch {
     // Native module unavailable.
@@ -189,7 +199,7 @@ async function scheduleOneCriticalAlarm(
   await notifee.default.createTriggerNotification(
     {
       id: notificationId,
-      title: 'Alarma crítica',
+      title: item.title || 'Es la hora',
       body: alarmTitle,
       data: {
         recordId: item.recordId,
@@ -230,7 +240,7 @@ async function scheduleOneCriticalAlarm(
           },
         ],
         lightUpScreen: true,
-        loopSound: shouldPlaySound(alertStyle, 'alarm'),
+        loopSound: true,
         ongoing: true,
         autoCancel: false,
         color: '#C4B5FD',
@@ -260,7 +270,7 @@ export async function syncCriticalAlarms(
   if (!enabled) return;
 
   const criticalExact = schedule.filter(isExactCriticalItem);
-  await Promise.all(
+  await Promise.allSettled(
     criticalExact.map((item) => scheduleOneCriticalAlarm(notifee, item, alertStyle, media)),
   );
 }
@@ -285,13 +295,105 @@ export async function snoozeCriticalAlarm(
     id: `${SNOOZE_ALERT_ID_PREFIX}${item.recordId}-${triggerAt.getTime()}`,
     recordId: item.recordId,
     triggerAt,
-    title: item.title || 'Alarma crítica',
+    title: item.title || 'Es la hora',
     body: item.body || 'Recordatorio pospuesto',
     alertLevel: 'alarm',
     kind: 'critical',
   };
 
   await scheduleOneCriticalAlarm(notifee, scheduleItem, alertStyle, media);
+}
+
+/** Immediately show a full-screen critical alarm (remote push / multi-device). */
+export async function presentCriticalAlarmNow(
+  item: {
+    recordId: string;
+    title: string;
+    body?: string;
+    alarmTitle?: string;
+    scheduleId?: string;
+  },
+  alertStyle: ReminderAlertStyle = 'both',
+  media: AlertMediaOptions = {},
+): Promise<boolean> {
+  const notifee = await getNotifee();
+  if (!notifee) return false;
+
+  try {
+    const { markReminderPresented, wasRecentlyPresented } = await import(
+      '@/services/reminders/reminder-present-dedupe'
+    );
+    const scheduleId =
+      item.scheduleId ?? `${EXACT_ALERT_ID_PREFIX}${item.recordId}-${Date.now()}`;
+    if (wasRecentlyPresented(scheduleId)) return false;
+
+    const channelId = await ensureCriticalAlarmChannel(notifee, alertStyle, media);
+    const alarmTitle =
+      item.alarmTitle?.trim() ||
+      item.body?.split('·')[0]?.trim() ||
+      item.title ||
+      'Actividad';
+    const headline = /^Es la hora/i.test(item.title)
+      ? item.title
+      : 'Es la hora';
+    const deepLink = buildCriticalAlarmDeepLink(item.recordId, alarmTitle);
+    const { soundId, vibrationId } = normalizeMedia(media);
+
+    await notifee.default.displayNotification({
+      id: toNotifeeAlarmId(scheduleId),
+      title: headline,
+      body: alarmTitle,
+      data: {
+        recordId: item.recordId,
+        scheduleId,
+        kind: 'critical',
+        alertStyle,
+        soundId,
+        vibrationId,
+        deepLink,
+        openCriticalAlarm: '1',
+        alarmTitle,
+      },
+      android: {
+        channelId,
+        category: notifee.AndroidCategory.ALARM,
+        importance: notifee.AndroidImportance.HIGH,
+        visibility: notifee.AndroidVisibility.PUBLIC,
+        pressAction: {
+          id: 'default',
+          launchActivity: 'default',
+        },
+        fullScreenAction: {
+          id: 'default',
+          launchActivity: 'default',
+        },
+        actions: [
+          {
+            title: 'Ya lo hago',
+            pressAction: { id: ACTION_COMPLETE },
+          },
+          {
+            title: 'Posponer 5 min',
+            pressAction: { id: ACTION_SNOOZE },
+          },
+          {
+            title: 'Hablar',
+            pressAction: { id: ACTION_TALK, launchActivity: 'default' },
+          },
+        ],
+        lightUpScreen: true,
+        loopSound: true,
+        ongoing: true,
+        autoCancel: false,
+        color: '#C4B5FD',
+      },
+    });
+
+    markReminderPresented(scheduleId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Fire a near-immediate full-screen critical alarm for native testing. */

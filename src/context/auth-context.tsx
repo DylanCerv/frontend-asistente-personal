@@ -86,6 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const signOut = useCallback(() => {
+    void import('@/services/reminders/device-push-token')
+      .then(({ unregisterDevicePushToken }) => unregisterDevicePushToken())
+      .catch(() => undefined);
     void clearStoredSession();
     setUser(null);
   }, []);

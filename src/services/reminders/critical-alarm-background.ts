@@ -67,7 +67,7 @@ export function registerCriticalAlarmBackgroundHandler(): void {
           await snoozeReminderNotification(
             {
               recordId,
-              title: 'Alarma crítica',
+              title: 'Es la hora',
               body: alarmTitle,
               kind: 'critical',
             },
