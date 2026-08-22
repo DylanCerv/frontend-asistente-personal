@@ -142,7 +142,7 @@ export function CriticalAlarmScreen({
             <Text
               className="text-[11px] font-bold uppercase tracking-[1.6px] text-white"
               style={{ letterSpacing: 1.6 }}>
-              Alarma crítica
+              Es la hora
             </Text>
           </View>
 
@@ -160,7 +160,7 @@ export function CriticalAlarmScreen({
               style={{ backgroundColor: DANGER_SOFT, borderColor: DANGER_BORDER }}>
               <Ionicons name="time-outline" size={14} color="#FFFFFF" />
               <Text className="text-[11px] font-bold uppercase tracking-[1.2px] text-white">
-                Vence ahora.
+                Suena hasta que la confirmes
               </Text>
             </View>
           </View>

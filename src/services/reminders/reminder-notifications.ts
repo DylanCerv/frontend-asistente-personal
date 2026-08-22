@@ -12,6 +12,12 @@ import {
   type PermissionResult,
 } from '@/services/permissions/permission-result';
 import {
+  cancelAllActivityWakeAlerts,
+  canScheduleActivityWakeAlerts,
+  isAndroidActivityWakeItem,
+  syncActivityWakeAlerts,
+} from '@/services/reminders/activity-wake-notifications';
+import {
   buildCriticalAlarmDeepLink,
   canScheduleCriticalAlarms,
   cancelAllCriticalAlarms,
@@ -105,6 +111,7 @@ const REMINDER_ID_PREFIXES = [
   'kivo-snooze-',
   'kivo-checkin-',
   'kivo-open-',
+  'kivo-activity-30m-',
 ] as const;
 
 const CRITICAL_ACCENT = '#F8A49B';
@@ -176,15 +183,28 @@ async function getNotificationsModule(): Promise<NotificationsModule | null> {
         if (!notificationHandlerConfigured) {
           Notifications.setNotificationHandler({
             handleNotification: async (notification) => {
-              const alertStyle = parseReminderAlertStyle(
-                notification.request.content.data?.alertStyle,
-              );
-              const alertLevel = notification.request.content.data?.alertLevel as
-                | ReminderAlertLevel
-                | undefined;
-              const kind = notification.request.content.data?.kind as
-                | ReminderNotificationKind
-                | undefined;
+              const data = notification.request.content.data ?? {};
+              const alertStyle = parseReminderAlertStyle(data.alertStyle);
+              const alertLevel = data.alertLevel as ReminderAlertLevel | undefined;
+              const kind = data.kind as ReminderNotificationKind | undefined;
+              const fromServer = data.source === 'server';
+              const elevateToNative =
+                fromServer &&
+                (data.openCriticalAlarm === '1' ||
+                  data.openCriticalAlarm === true ||
+                  data.openWakeAlert === '1' ||
+                  data.openWakeAlert === true);
+
+              // Critical/wake from the server are presented via Notifee — hide Expo tray copy.
+              if (elevateToNative) {
+                return {
+                  shouldShowAlert: false,
+                  shouldPlaySound: false,
+                  shouldSetBadge: false,
+                  shouldShowBanner: false,
+                  shouldShowList: false,
+                };
+              }
 
               return {
                 shouldShowAlert: true,
@@ -305,6 +325,32 @@ async function ensureAndroidChannels(
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     sound: soundName,
   });
+
+  // Unsuffixed IDs must match Expo Push `channelId` from the backend.
+  await Notifications.setNotificationChannelAsync('kivo-reminders', {
+    name: 'Recordatorios Kivo',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: softPattern,
+    lightColor: '#7C3AED',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: soundName,
+  });
+  await Notifications.setNotificationChannelAsync('kivo-activity-wake', {
+    name: 'Aviso de actividad',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: alarmPattern,
+    lightColor: '#7C3AED',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: soundName,
+  });
+  await Notifications.setNotificationChannelAsync('kivo-critical-alarm', {
+    name: 'Alarmas de actividad',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: alarmPattern,
+    lightColor: CRITICAL_ACCENT,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: soundName,
+  });
 }
 
 function resolveAndroidChannelId(
@@ -316,6 +362,7 @@ function resolveAndroidChannelId(
   const suffix = channelSuffix(soundId, vibrationId);
   if (kind === 'critical') return `${ANDROID_CRITICAL_CHANNEL_ID}-${suffix}`;
   if (kind === 'daily-summary') return `${ANDROID_ASSISTANT_CHANNEL_ID}-${suffix}`;
+  if (kind === 'activity-warning') return `${ANDROID_ALARM_CHANNEL_ID}-${suffix}`;
   const base =
     alertLevel === 'alarm' ? ANDROID_ALARM_CHANNEL_ID : ANDROID_NOTIFICATION_CHANNEL_ID;
   return `${base}-${suffix}`;
@@ -379,6 +426,7 @@ function buildNotificationContent(
       kind: item.kind,
       scheduleId: item.id,
       openCriticalAlarm: item.kind === 'critical' ? '1' : '0',
+      openWakeAlert: item.kind === 'activity-warning' ? '1' : '0',
       alarmTitle: item.kind === 'critical' ? extractAlarmTitle(item) : undefined,
     },
     ...(Platform.OS === 'android'
@@ -431,37 +479,45 @@ export async function syncReminderNotifications(
   },
 ): Promise<void> {
   const media = normalizeMedia(options);
-  const Notifications = await getNotificationsModule();
-  if (!Notifications) {
-    if (!enabled) await cancelAllCriticalAlarms();
-    return;
-  }
-
-  await cancelAppReminders();
-
-  if (!enabled) {
-    await cancelAllCriticalAlarms();
-    return;
-  }
-
-  const granted = await checkNotificationPermissions();
-  if (!granted) {
-    await cancelAllCriticalAlarms();
-    return;
-  }
-
-  await ensureAndroidChannels(Notifications, alertStyle, media);
-  await ensureNotificationCategories(Notifications);
-
   const schedule = buildReminderSchedule(records, {
     includeDailySummary: options?.dailySummaryEnabled !== false,
   });
 
-  await syncCriticalAlarms(schedule, enabled, alertStyle, media);
+  const Notifications = await getNotificationsModule();
 
-  const expoSchedule = schedule.filter((item) => !isAndroidFullScreenCritical(item));
+  // Always keep Android Notifee alarms in sync, even if expo-notifications is unavailable.
+  if (!enabled) {
+    await cancelAllCriticalAlarms();
+    await cancelAllActivityWakeAlerts();
+    if (Notifications) await cancelAppReminders();
+    return;
+  }
 
-  await Promise.all(
+  const granted = Notifications
+    ? await checkNotificationPermissions()
+    : canScheduleCriticalAlarms() || canScheduleActivityWakeAlerts();
+
+  if (!granted) {
+    await cancelAllCriticalAlarms();
+    await cancelAllActivityWakeAlerts();
+    if (Notifications) await cancelAppReminders();
+    return;
+  }
+
+  await syncCriticalAlarms(schedule, true, alertStyle, media);
+  await syncActivityWakeAlerts(schedule, true, alertStyle, media);
+
+  if (!Notifications) return;
+
+  await cancelAppReminders();
+  await ensureAndroidChannels(Notifications, alertStyle, media);
+  await ensureNotificationCategories(Notifications);
+
+  const expoSchedule = schedule.filter(
+    (item) => !isAndroidFullScreenCritical(item) && !isAndroidActivityWakeItem(item),
+  );
+
+  await Promise.allSettled(
     expoSchedule.map((item) =>
       Notifications.scheduleNotificationAsync({
         identifier: item.id,

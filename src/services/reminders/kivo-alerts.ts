@@ -100,39 +100,56 @@ export function buildKivoAlerts(
     });
     const lines: KivoAssistantAlert['lines'] = [];
 
-    if (stats.meetingsToday > 0) {
-      lines.push({
-        id: 'meetings',
-        icon: 'checkmark',
-        text: `${stats.meetingsToday} ${stats.meetingsToday === 1 ? 'reunión programada' : 'reuniones programadas'} hoy`,
+    if (stats.activityLines.length > 0) {
+      stats.activityLines.slice(0, 5).forEach((text, index) => {
+        lines.push({
+          id: `activity-${index}`,
+          icon: index === 0 ? 'checkmark' : 'trending',
+          text,
+        });
       });
-    }
-    if (stats.tasksToday > 0) {
-      lines.push({
-        id: 'tasks',
-        icon: 'trending',
-        text: `${stats.tasksToday} ${stats.tasksToday === 1 ? 'tarea pendiente' : 'tareas pendientes'} para hoy`,
-      });
-    }
-    if (stats.highPriorityToday > 0) {
-      lines.push({
-        id: 'urgent',
-        icon: 'alert',
-        text: `${stats.highPriorityToday} ${stats.highPriorityToday === 1 ? 'asunto urgente' : 'asuntos urgentes'}`,
-      });
-    }
-    if (lines.length === 0) {
-      lines.push({
-        id: 'calm',
-        icon: 'checkmark',
-        text: 'Sin pendientes críticos. Buen momento para planear.',
-      });
+      if (stats.activityLines.length > 5) {
+        lines.push({
+          id: 'more',
+          icon: 'alert',
+          text: `+${stats.activityLines.length - 5} más para hoy`,
+        });
+      }
+    } else {
+      if (stats.meetingsToday > 0) {
+        lines.push({
+          id: 'meetings',
+          icon: 'checkmark',
+          text: `${stats.meetingsToday} ${stats.meetingsToday === 1 ? 'reunión programada' : 'reuniones programadas'} hoy`,
+        });
+      }
+      if (stats.tasksToday > 0) {
+        lines.push({
+          id: 'tasks',
+          icon: 'trending',
+          text: `${stats.tasksToday} ${stats.tasksToday === 1 ? 'tarea pendiente' : 'tareas pendientes'} para hoy`,
+        });
+      }
+      if (stats.highPriorityToday > 0) {
+        lines.push({
+          id: 'urgent',
+          icon: 'alert',
+          text: `${stats.highPriorityToday} ${stats.highPriorityToday === 1 ? 'asunto urgente' : 'asuntos urgentes'}`,
+        });
+      }
+      if (lines.length === 0) {
+        lines.push({
+          id: 'calm',
+          icon: 'checkmark',
+          text: 'Sin pendientes críticos. Buen momento para planear.',
+        });
+      }
     }
 
     alerts.push({
       id: 'assistant-daily',
       kind: 'assistant',
-      title: 'Resumen del día',
+      title: 'Actividades de hoy',
       timeLabel: '5:00 am',
       lines,
       stats,
